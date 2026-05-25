@@ -15,31 +15,35 @@ export async function resolveMindMapImage(image: MindMapImage): Promise<NamedRes
     return { name: normalizeSvgName(image.name ?? "image.svg"), data: Buffer.from(svg, "utf8") };
   }
 
-  if (isSvgDataUri(image.data)) {
-    const svg = normalizeSvgXml(decodeSvgDataUri(image.data), "image.data");
+  const svgDataUri = parseSvgDataUri(image.data);
+  if (svgDataUri !== null) {
+    const svg = normalizeSvgXml(svgDataUri, "image.data");
     return { name: normalizeSvgName(image.name), data: Buffer.from(svg, "utf8") };
   }
 
   return { name: image.name, data: image.data };
 }
 
-function isSvgDataUri(value: string): boolean {
-  return /^data:image\/svg\+xml[;,]/i.test(value);
-}
-
 function normalizeSvgName(name: string): string {
   return name.toLowerCase().endsWith(".svg") ? name : `${name}.svg`;
 }
 
-function decodeSvgDataUri(value: string): string {
-  const match = value.match(/^data:image\/svg\+xml(?:;charset=[^;,]+)?(;base64)?,(.*)$/i);
-  if (!match) {
+function parseSvgDataUri(value: string): string | null {
+  if (!value.toLowerCase().startsWith("data:image/svg+xml")) {
+    return null;
+  }
+
+  const commaIndex = value.indexOf(",");
+  if (commaIndex < 0) {
     throw new ImageError("非法 SVG data URI", "image.data");
   }
 
-  const payload = match[2] ?? "";
-  if (match[1]) {
-    return Buffer.from(payload, "base64").toString("utf8");
+  const header = value.slice(0, commaIndex);
+  const payload = value.slice(commaIndex + 1);
+  const parameters = parseSvgDataUriHeader(header);
+
+  if (parameters.base64) {
+    return decodeBase64SvgDataUriPayload(payload);
   }
 
   try {
@@ -49,9 +53,63 @@ function decodeSvgDataUri(value: string): string {
   }
 }
 
+function parseSvgDataUriHeader(header: string): { base64: boolean } {
+  const parts = header.split(";");
+  if (parts[0]?.toLowerCase() !== "data:image/svg+xml") {
+    throw new ImageError("非法 SVG data URI", "image.data");
+  }
+
+  let base64 = false;
+  let charset = false;
+  let utf8 = false;
+
+  for (const rawParameter of parts.slice(1)) {
+    const parameter = rawParameter.toLowerCase();
+    if (parameter === "base64") {
+      if (base64) {
+        throw new ImageError("非法 SVG data URI", "image.data");
+      }
+      base64 = true;
+      continue;
+    }
+
+    if (parameter.startsWith("charset=")) {
+      if (charset || parameter.length === "charset=".length) {
+        throw new ImageError("非法 SVG data URI", "image.data");
+      }
+      charset = true;
+      continue;
+    }
+
+    if (parameter === "utf8") {
+      if (utf8) {
+        throw new ImageError("非法 SVG data URI", "image.data");
+      }
+      utf8 = true;
+      continue;
+    }
+
+    throw new ImageError("非法 SVG data URI", "image.data");
+  }
+
+  return { base64 };
+}
+
+function decodeBase64SvgDataUriPayload(payload: string): string {
+  if (!isBase64Payload(payload)) {
+    throw new ImageError("非法 SVG data URI", "image.data");
+  }
+  return Buffer.from(payload, "base64").toString("utf8");
+}
+
+function isBase64Payload(value: string): boolean {
+  return /^[A-Za-z0-9+/]*={0,2}$/.test(value) && !/=.*[^=]/.test(value) && value.length % 4 !== 1;
+}
+
 function normalizeSvgXml(value: string, path: string): string {
   const trimmed = value.trim();
-  if (!/^<svg[\s>]/i.test(trimmed) || !/<\/svg>$/i.test(trimmed)) {
+  const isSvgDocument = /^<svg(?:\s[^>]*)?>[\s\S]*<\/svg>$/i.test(trimmed) || /^<svg(?:\s[^>]*)?\/>$/i.test(trimmed);
+  if (!isSvgDocument) {
     throw new ImageError("SVG 内容必须是完整 <svg> 文档", path);
   }
   return trimmed;
