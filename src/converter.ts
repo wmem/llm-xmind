@@ -21,25 +21,29 @@ export async function convertToWorkbook(document: CompiledDocument): Promise<Wor
 }
 
 async function convertSheet(sheet: CompiledSheet): Promise<RootTopicBuilder> {
-  const root = await convertRootTopic(sheet.root);
+  const root = await convertRootTopic(sheet.root, sheet);
   root.sheetTitle(sheet.title);
   root.relationships(collectRelationships(sheet));
   return root;
 }
 
-async function convertRootTopic(compiled: CompiledTopic): Promise<RootTopicBuilder> {
+async function convertRootTopic(compiled: CompiledTopic, sheet: CompiledSheet): Promise<RootTopicBuilder> {
   const builder = RootTopic(compiled.topic.title);
-  await applyTopicFields(builder, compiled);
+  await applyTopicFields(builder, compiled, sheet);
   return builder;
 }
 
-async function convertChildTopic(compiled: CompiledTopic): Promise<TopicBuilder> {
+async function convertChildTopic(compiled: CompiledTopic, sheet: CompiledSheet): Promise<TopicBuilder> {
   const builder = Topic(compiled.topic.title);
-  await applyTopicFields(builder, compiled);
+  await applyTopicFields(builder, compiled, sheet);
   return builder;
 }
 
-async function applyTopicFields(builder: RootTopicBuilder | TopicBuilder, compiled: CompiledTopic): Promise<void> {
+async function applyTopicFields(
+  builder: RootTopicBuilder | TopicBuilder,
+  compiled: CompiledTopic,
+  sheet: CompiledSheet,
+): Promise<void> {
   builder.ref(compiled.ref);
 
   if (compiled.topic.note) {
@@ -55,10 +59,10 @@ async function applyTopicFields(builder: RootTopicBuilder | TopicBuilder, compil
     builder.image(await resolveMindMapImage(compiled.topic.image));
   }
   if (compiled.children.length) {
-    builder.children(await Promise.all(compiled.children.map(convertChildTopic)));
+    builder.children(await Promise.all(compiled.children.map((child) => convertChildTopic(child, sheet))));
   }
 
-  const summaries = compiled.topic.summaries?.map((summary) => convertSummary(summary, compiled)) ?? [];
+  const summaries = compiled.topic.summaries?.map((summary) => convertSummary(summary, compiled, sheet)) ?? [];
   if (summaries.length) {
     builder.summaries(summaries);
   }
@@ -77,27 +81,34 @@ function convertRelationship(relationship: MindMapRelationship, sheet: CompiledS
   });
 }
 
-function convertSummary(summary: MindMapSummary, owner: CompiledTopic): SummaryBuilder {
+function convertSummary(summary: MindMapSummary, owner: CompiledTopic, sheet: CompiledSheet): SummaryBuilder {
+  const fromCompiled = resolveCompiledTopic(sheet, summary.fromPath, "summary.fromPath");
+  const toCompiled = resolveCompiledTopic(sheet, summary.toPath, "summary.toPath");
+  assertDirectChild(owner, fromCompiled, "summary.fromPath");
+  assertDirectChild(owner, toCompiled, "summary.toPath");
+
   return Summary(summary.title, {
-    from: resolveDirectChildRef(owner, summary.fromPath, "summary.fromPath"),
-    to: resolveDirectChildRef(owner, summary.toPath, "summary.toPath"),
+    from: fromCompiled.ref,
+    to: toCompiled.ref,
   });
 }
 
 function resolvePathRef(sheet: CompiledSheet, path: readonly string[], label: string): string {
+  return resolveCompiledTopic(sheet, path, label).ref;
+}
+
+function resolveCompiledTopic(sheet: CompiledSheet, path: readonly string[], label: string): CompiledTopic {
   const found = sheet.pathIndex.get(pathKey(path));
   if (!found) {
     throw new Error(`${label} 不存在: ${JSON.stringify(path)}`);
   }
-  return found.ref;
+  return found;
 }
 
-function resolveDirectChildRef(owner: CompiledTopic, path: readonly string[], label: string): string {
-  const found = owner.children.find((child) => pathKey(child.path) === pathKey(path));
-  if (!found) {
-    throw new Error(`${label} 不是当前 summary 所属 topic 的直接子 topic: ${JSON.stringify(path)}`);
+function assertDirectChild(owner: CompiledTopic, topic: CompiledTopic, label: string): void {
+  if (!owner.children.includes(topic)) {
+    throw new Error(`${label} 不是当前 summary 所属 topic 的直接子 topic: ${JSON.stringify(topic.path)}`);
   }
-  return found.ref;
 }
 
 function flattenTopics(topic: CompiledTopic): CompiledTopic[] {

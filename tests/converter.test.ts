@@ -5,6 +5,7 @@ import { convertToWorkbook } from "../src/converter";
 import { pathKey } from "../src/path";
 
 type SerializedTopic = {
+  id: string;
   title: string;
   notes?: { plain?: { content?: string } };
   labels?: string[];
@@ -63,7 +64,11 @@ describe("convertToWorkbook", () => {
     expect(root.image?.src).toMatch(/^xap:resources\/.+\.svg$/);
     expect(root.children?.attached?.map((child) => child.title)).toEqual(["A", "B"]);
     expect(content[0].relationships?.[0]?.title).toBe("rel");
+    expect(content[0].relationships?.[0]?.end1Id).toBe(root.children?.attached?.[0]?.id);
+    expect(content[0].relationships?.[0]?.end2Id).toBe(root.children?.attached?.[1]?.id);
     expect(root.summaries?.[0]?.class).toBe("summary");
+    expect(root.summaries?.[0]?.range).toBe("(0,1)");
+    expect(root.summaries?.[0]?.topicId).toBe(root.children?.summary?.[0]?.id);
     expect(root.children?.summary?.[0]?.title).toBe("sum");
 
     const resourcePath = root.image!.src.replace("xap:", "");
@@ -143,5 +148,24 @@ describe("convertToWorkbook", () => {
     compiled.sheets[0].pathIndex.delete(pathKey(["B"]));
 
     await expect(convertToWorkbook(compiled)).rejects.toThrow('relationship.toPath 不存在: ["B"]');
+  });
+
+  test("fails fast with a clear error when summary paths are missing from the sheet path index", async () => {
+    const compiled = compileMindMapDocument({
+      version: "1",
+      sheets: [
+        {
+          title: "S",
+          root: {
+            title: "R",
+            children: [{ title: "A" }, { title: "B" }],
+            summaries: [{ title: "sum", fromPath: ["A"], toPath: ["B"] }],
+          },
+        },
+      ],
+    });
+    compiled.sheets[0].pathIndex.delete(pathKey(["B"]));
+
+    await expect(convertToWorkbook(compiled)).rejects.toThrow('summary.toPath 不存在: ["B"]');
   });
 });
