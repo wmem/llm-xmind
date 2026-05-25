@@ -9,15 +9,41 @@
 - 可复用 TypeScript 库：供后续 HTTP API、MCP、其他服务集成。
 - CLI 工具：供本地脚本和 AI Agent 直接调用。
 
-底层 XMind 文件生成使用 `xmind-generator`。项目自身不直接拼装 `.xmind` 压缩包格式，而是把稳定、可校验的 AI 输入 schema 映射到该库支持的对象和方法。
+底层 XMind 文件生成使用 `xmind-generator`。schema 不直接暴露 XMind 内部 ID，也不要求 AI 输出构建期引用。AI 只负责表达内容结构；工具负责生成内部引用并调用 `xmind-generator`。
+
+## 已确认的 xmind-generator 能力
+
+基于 `xmind-generator@1.0.1` 的 README、类型声明和实现，公开 builder 能力如下：
+
+- `Workbook(rootBuilder | rootBuilder[])`
+- `RootTopic(title)`
+- `RootTopic(title).sheetTitle(title)`
+- `Topic(title)`
+- `.children(Topic[])`
+- `.note(string)`：纯文本备注。
+- `.labels(string[])`
+- `.markers(MarkerId[])`
+- `.image(NamedResourceData)`：`{ data, name }`，其中 `data` 可为 `data:${string}`、`ArrayBuffer`、`Buffer` 或 `Uint8Array`。
+- `Summary(title, { from, to })`
+- `RootTopic(...).summaries(...)`
+- `Topic(...).summaries(...)`
+- `Relationship(title, { from, to })`
+- `RootTopic(...).relationships(...)`
+- `.ref(string)`：构建期引用，不写入导出的 XMind 文件。
+- `writeLocalFile(workbook, path)`
+- `readImageFile(filePath)`
+
+第一版只围绕这些能力建模。没有公开 builder 支持的能力不进入 AI schema。
 
 ## 目标
 
-- 定义 AI 友好的 `MindMapDocument` schema。
+- 定义 AI 友好的输入 schema，让 AI 尽量只输出自然内容和层级结构。
 - 支持 JSON 与 YAML 输入。
-- 校验输入结构、字段类型、枚举值和引用一致性。
+- 支持单 sheet 和多 sheet。
+- 支持主题树、备注、标签、标记、图片、关系线和概要。
+- 自动生成内部引用，不要求 AI 输出 ID。
+- 校验输入结构、字段类型、枚举值和路径引用一致性。
 - 将合法输入转换为 `xmind-generator` workbook 并写出 `.xmind` 文件。
-- 尽量覆盖 `xmind-generator` 支持的信息面，包括主题、子主题、标记、备注、关系线、概要、图片、链接、样式与布局等。
 - 用测试保证 schema 定义的所有格式都被验证和转换。
 
 ## 非目标
@@ -26,6 +52,35 @@
 - 第一版不提供 Web UI。
 - 第一版不做增量编辑现有 `.xmind` 文件。
 - 第一版不反向解析 `.xmind` 到 YAML/JSON。
+- 第一版不暴露 XMind 内部 ID。
+- 第一版不支持 `xmind-generator` 未公开的 style、layout、structure、relationship control points、HTML note 等字段。
+
+## 设计原则
+
+### AI 友好
+
+schema 应减少 AI 犯错概率：
+
+- 不要求 AI 生成全局唯一 ID。
+- 不要求 AI 理解 XMind 内部 ID 或 `xmind-generator` 的 `.ref()`。
+- 字段名保持直白，例如 `title`、`children`、`note`、`labels`。
+- 引用主题时使用标题路径 `path`，而不是随机 ID。
+- 默认禁止同级重复标题，保证路径定位稳定。
+- schema 拒绝未知字段，避免 AI 输出看似合理但无效的内容。
+
+### 能力诚实
+
+schema 只声明第一版确实能转换到 `xmind-generator` 的能力。无法转换的字段不进入 schema，避免 AI 生成无效配置。
+
+### 内部编译
+
+工具内部把 AI 输入编译成稳定的中间模型：
+
+- 遍历每个 sheet 的 topic tree。
+- 为每个 topic 生成内部 ref，例如 `sheet-0/topic-0-1-2`。
+- 建立 `path -> ref` 映射。
+- 将 relationship、summary 的路径引用改写成 ref。
+- 调用 `xmind-generator` builder。
 
 ## 使用方式
 
@@ -45,104 +100,243 @@ validateMindMapDocument(document);
 await generateXmindFile(document, "output.xmind");
 ```
 
-## 输入模型
+## AI 输入 schema
 
 顶层结构命名为 `MindMapDocument`。
 
-核心字段：
+```ts
+type MindMapDocument = {
+  version: "1";
+  sheets: MindMapSheet[];
+};
+```
 
-- `schemaVersion`：schema 版本，第一版为 `"1.0"`。
-- `title`：文档标题。
-- `metadata`：可选元数据，例如来源、摘要时间、模型名、提示词版本。
-- `root`：根主题。
-- `relationships`：可选关系线列表。
-- `summaries`：可选概要列表。
-- `attachments`：可选附件或图片引用信息。
-- `settings`：可选 workbook/sheet 级设置。
+### Sheet
 
-主题结构命名为 `MindMapTopic`。
+```ts
+type MindMapSheet = {
+  title: string;
+  root: MindMapTopic;
+};
+```
 
-主题字段覆盖：
+约束：
 
-- `id`：可选稳定 ID。未提供时由工具生成。
-- `title`：主题标题。
-- `children`：子主题。
-- `notes`：纯文本或 HTML 备注。
-- `labels`：标签列表。
-- `markers`：标记列表。
-- `link`：外部链接或内部引用。
-- `image`：图片路径、URL 或已声明附件引用。
-- `style`：主题样式字段。
-- `layout`：主题布局字段。
-- `structure`：结构类型字段。
-- `branch`：分支相关设置。
-- `numbering`：编号相关设置。
+- `sheets` 至少 1 个。
+- `sheet.title` 非空。
+- 每个 sheet 内部独立解析路径。
 
-关系线结构命名为 `MindMapRelationship`。
+### Topic
 
-关系线字段：
+```ts
+type MindMapTopic = {
+  title: string;
+  note?: string;
+  labels?: string[];
+  markers?: MarkerName[];
+  image?: MindMapImage;
+  children?: MindMapTopic[];
+  relationships?: MindMapRelationship[];
+  summaries?: MindMapSummary[];
+};
+```
 
-- `id`
-- `from`
-- `to`
-- `title`
-- `style`
-- `controlPoints`
+约束：
 
-概要结构命名为 `MindMapSummary`。
+- `title` 非空。
+- `note` 只支持纯文本。
+- `labels` 为字符串数组，元素非空。
+- `markers` 只能使用 `xmind-generator` 支持的 marker ID。
+- `children` 中同级 topic 的 `title` 默认不得重复。
+- `relationships` 和 `summaries` 可以定义在任意 topic 上，但引用范围必须在同一 sheet 内。
 
-概要字段：
+### Marker
 
-- `id`
-- `title`
-- `topicIds`
-- `style`
+marker 使用 `xmind-generator` 实际 marker ID 字符串，降低 AI 输出复杂度。
 
-第一版实现时需要以 `xmind-generator` 实际导出的 TypeScript 类型和 README 示例为准。如果该库某些能力没有公开 Builder 方法，schema 中对应字段必须标记为暂不支持，不能假装已转换。
+支持值：
+
+- `priority-1` 到 `priority-7`
+- `smiley-laugh`
+- `smiley-smile`
+- `smiley-cry`
+- `smiley-surprise`
+- `smiley-boring`
+- `smiley-angry`
+- `smiley-embarrass`
+- `task-start`
+- `task-oct`
+- `task-quarter`
+- `task-half`
+- `task-done`
+- `task-pause`
+- `flag-red`
+- `flag-orange`
+- `flag-dark-blue`
+- `flag-purple`
+- `flag-green`
+- `flag-blue`
+- `flag-gray`
+- `star-red`
+- `star-orange`
+- `star-dark-blue`
+- `star-purple`
+- `star-green`
+- `star-blue`
+- `star-gray`
+- `people-red`
+- `people-orange`
+- `people-dark-blue`
+- `people-purple`
+- `people-green`
+- `people-blue`
+- `people-gray`
+- `arrow-left`
+- `arrow-right`
+- `arrow-up`
+- `arrow-down`
+- `arrow-left-right`
+- `arrow-up-down`
+- `arrow-refresh`
+- `month-jan`
+- `month-feb`
+- `month-mar`
+- `month-apr`
+- `month-may`
+- `month-jun`
+- `month-jul`
+- `month-sep`
+- `month-oct`
+- `month-nov`
+- `month-dec`
+- `week-sun`
+- `week-mon`
+- `week-tue`
+- `week-web`
+- `week-thu`
+- `week-fri`
+- `week-sat`
+
+同一个 topic 内不允许出现同组 marker 冲突，例如两个 priority marker。
+
+### Image
+
+```ts
+type MindMapImage =
+  | { kind: "data-uri"; name: string; data: `data:${string}` }
+  | { kind: "file"; path: string }
+  | { kind: "svg"; name?: string; content: string };
+```
+
+设计规则：
+
+- `data-uri` 直接转换为 `NamedResourceData`。
+- `file` 使用 `xmind-generator` 的 `readImageFile` 读取，保持库原生支持能力。
+- `svg` 作为 AI 友好输入格式支持，但转换层不直接假定 XMind 客户端可显示 SVG。
+- SVG 输入默认渲染成 PNG，再以 `NamedResourceData` 传给 `xmind-generator`。
+- SVG 渲染失败时返回可定位错误，不静默丢图。
+- 第一版不支持远程 URL 图片下载。
+
+说明：`xmind-generator` 的 `NamedResourceData` 允许任意扩展名文件被打包进资源目录，但这不等价于 XMind 客户端一定能显示该格式。因此 SVG 需要在本工具侧转换为 PNG。
+
+### Relationship
+
+```ts
+type MindMapRelationship = {
+  title?: string;
+  fromPath: string[];
+  toPath: string[];
+};
+```
+
+约束：
+
+- `fromPath` 和 `toPath` 是相对当前 sheet root 的标题路径。
+- 路径不包含 root title，从 root 的子节点开始。
+- 空路径 `[]` 表示 root topic。
+- 路径必须唯一命中一个 topic。
+- relationship 只能引用同一 sheet 内 topic。
+
+### Summary
+
+```ts
+type MindMapSummary = {
+  title: string;
+  fromPath: string[];
+  toPath: string[];
+};
+```
+
+约束：
+
+- `fromPath` 和 `toPath` 必须在同一 sheet 内。
+- 两个路径对应的 topic 必须拥有同一个父 topic。
+- summary 映射到 `xmind-generator` 的 `{ from, to }` 范围。
+- 如果两个 topic 不在同一父节点下，校验失败。
 
 ## 示例输入
 
 ```yaml
-schemaVersion: "1.0"
-title: "聊天总结"
-metadata:
-  source: "chat"
-  model: "example-model"
-root:
-  id: "root"
-  title: "AI 友好的 XMind 生成工具"
-  notes:
-    plain: "把 AI 总结结果转换成 XMind 文件。"
-  labels:
-    - "设计"
-    - "工具"
-  children:
-    - id: "input"
-      title: "输入"
-      children:
-        - id: "json"
-          title: "JSON"
-        - id: "yaml"
-          title: "YAML"
-    - id: "output"
-      title: "输出"
+version: "1"
+sheets:
+  - title: "项目讨论"
+    root:
+      title: "AI 友好的 XMind 生成工具"
+      note: "把聊天内容总结成结构化思维导图。"
+      labels:
+        - "设计"
+        - "工具"
       markers:
         - "priority-1"
       children:
-        - id: "xmind"
-          title: ".xmind 文件"
-relationships:
-  - id: "rel-input-output"
-    from: "input"
-    to: "output"
-    title: "转换"
-summaries:
-  - id: "summary-input"
-    title: "结构化输入"
-    topicIds:
-      - "json"
-      - "yaml"
+        - title: "输入"
+          children:
+            - title: "YAML"
+            - title: "JSON"
+        - title: "输出"
+          children:
+            - title: ".xmind 文件"
+      relationships:
+        - title: "转换"
+          fromPath:
+            - "输入"
+          toPath:
+            - "输出"
+      summaries:
+        - title: "结构化输入"
+          fromPath:
+            - "输入"
+            - "YAML"
+          toPath:
+            - "输入"
+            - "JSON"
 ```
+
+## 内部编译模型
+
+内部模型不暴露给 AI。
+
+```ts
+type CompiledTopic = {
+  ref: string;
+  path: string[];
+  topic: MindMapTopic;
+  children: CompiledTopic[];
+};
+```
+
+编译步骤：
+
+1. 校验 schema。
+2. 遍历每个 sheet，检查同级标题唯一性。
+3. 生成内部 ref。
+4. 建立 path 索引。
+5. 校验 relationship 和 summary 的路径引用。
+6. 将 topic tree 转换为 `Topic(...)` / `RootTopic(...)` builder。
+7. 转换 marker 字符串为 `MarkerId`。
+8. 解析图片为 `NamedResourceData`。
+9. 将 relationship 和 summary path 改写为内部 ref。
+10. 调用 `Workbook(...)` 和 `writeLocalFile(...)`。
 
 ## 架构
 
@@ -150,10 +344,12 @@ summaries:
 
 - `src/schema`：TypeScript 类型、JSON Schema、schema 常量。
 - `src/parser`：根据扩展名解析 JSON/YAML。
-- `src/validator`：执行 schema 校验和引用一致性校验。
-- `src/converter`：把 `MindMapDocument` 转成 `xmind-generator` workbook。
+- `src/validator`：执行 schema 校验和语义校验。
+- `src/compiler`：生成内部 ref、path 索引和编译模型。
+- `src/image`：处理 data URI、文件图片和 SVG 转 PNG。
+- `src/converter`：把编译模型转成 `xmind-generator` builder。
 - `src/writer`：调用 `xmind-generator` 写出本地文件。
-- `src/cli`：解析命令行参数，连接 parser、validator、converter、writer。
+- `src/cli`：解析命令行参数，连接 parser、validator、compiler、converter、writer。
 
 数据流：
 
@@ -162,6 +358,8 @@ JSON/YAML 文件
   -> parser
   -> schema validator
   -> semantic validator
+  -> compiler
+  -> image resolver
   -> converter
   -> xmind-generator
   -> .xmind 文件
@@ -170,25 +368,27 @@ JSON/YAML 文件
 边界规则：
 
 - parser 只负责语法解析，不做业务校验。
-- schema validator 只负责结构、类型、枚举、基础约束。
-- semantic validator 负责跨字段规则，例如关系线引用的 topic 是否存在。
-- converter 不接受未知结构，调用前必须完成校验。
+- schema validator 负责结构、类型、枚举、基础约束。
+- semantic validator 负责同级标题、路径引用、summary 范围、marker 冲突等跨字段规则。
+- compiler 负责生成内部 ref，不修改原始输入对象。
+- converter 不接受未验证输入。
 - CLI 不包含转换规则，只负责组装流程和输出错误。
 
 ## 错误处理
 
-错误分为三类：
+错误分为四类：
 
 - `ParseError`：JSON/YAML 语法错误、文件不存在、扩展名不支持。
 - `SchemaValidationError`：字段类型、必填字段、枚举值、数组元素等 schema 错误。
-- `SemanticValidationError`：关系线、概要、图片引用等跨节点一致性错误。
+- `SemanticValidationError`：同级标题重复、路径引用非法、summary 范围非法、marker 同组冲突等错误。
+- `ImageError`：图片文件读取失败、data URI 非法、SVG 渲染失败。
 
 CLI 输出需要包含：
 
 - 错误类型。
-- 字段路径，例如 `root.children[0].markers[1]`。
+- 字段路径，例如 `sheets[0].root.children[1].markers[0]`。
 - 简短原因。
-- 对非法引用，输出引用值和可用 ID 范围摘要。
+- 对非法路径，输出 `fromPath` 或 `toPath` 和当前 sheet 可用路径摘要。
 
 ## 测试策略
 
@@ -198,7 +398,9 @@ CLI 输出需要包含：
 
 - parser 测试：JSON、YAML、YML 都能解析；非法语法失败。
 - schema 测试：覆盖每一个字段的合法与非法形态。
-- semantic 测试：覆盖 topic ID、relationship、summary、image/attachment 等引用一致性。
+- semantic 测试：覆盖同级标题唯一性、路径引用、summary 父节点约束、marker 同组冲突。
+- compiler 测试：确认内部 ref 生成稳定，path 索引正确。
+- image 测试：覆盖 data URI、文件图片、SVG 转 PNG、非法 SVG。
 - converter 测试：覆盖 schema 中每一个可转换字段，确认确实传递到 `xmind-generator` 对应结构。
 - CLI 测试：从 fixture 输入生成 `.xmind` 文件，并验证文件存在且非空。
 
@@ -209,8 +411,11 @@ fixture 分层：
 - `invalid-required-*`：缺少必填字段。
 - `invalid-type-*`：字段类型错误。
 - `invalid-enum-*`：枚举值非法。
-- `invalid-reference-*`：跨字段引用非法。
-- `invalid-array-*`：数组为空、元素非法、重复 ID 等边界情况。
+- `invalid-path-*`：路径引用非法。
+- `invalid-summary-*`：summary 范围非法。
+- `invalid-marker-*`：marker 非法或同组冲突。
+- `invalid-image-*`：图片输入非法。
+- `invalid-array-*`：数组为空、元素非法等边界情况。
 
 覆盖要求：
 
@@ -228,10 +433,12 @@ fixture 分层：
 - 使用 TypeScript。
 - 尽量保持 ESM。
 - schema 与 TS 类型需要避免长期漂移。优先从一个来源生成另一个来源，或用测试检测两者一致性。
+- SVG 转 PNG 需要选择可在 Bun/Node 环境落地的库，并用 fixture 验证实际输出。
 - 依赖保持克制，核心依赖预计包括：
   - `xmind-generator`
   - YAML 解析库
   - JSON Schema 校验库
+  - SVG 渲染或图片转换库
   - CLI 参数解析库或轻量自写解析
 
 ## 验收标准
@@ -241,20 +448,19 @@ fixture 分层：
 - `bun run llm-xmind fixtures/complete.yaml -o tmp/complete.xmind` 能生成非空文件。
 - schema 中声明的每个字段都有 validator 测试覆盖。
 - schema 中声明的每个可转换字段都有 converter 测试覆盖。
+- SVG 图片输入能转换为可打包的 PNG 资源。
 - 非法输入能给出可定位的错误路径。
 - README 包含 AI 生成 JSON/YAML 的示例提示词和输入示例。
 
 ## 风险与处理
 
-- `xmind-generator` 的公开 API 可能无法覆盖所有 XMind 内部能力。
-  - 处理方式：以库公开能力为准，schema 对暂不支持字段明确标注，测试中区分“可校验但不可转换”和“可转换”字段。
+- `xmind-generator` 的公开 API 无法覆盖全部 XMind 能力。
+  - 处理方式：第一版 schema 只覆盖公开 builder 支持的能力。
 - AI 可能生成不稳定字段名或额外字段。
   - 处理方式：schema 默认拒绝未知字段，并在 README 中提供严格输出提示词。
-- topic title 可能重复，关系线用 title 引用会不稳定。
-  - 处理方式：推荐 AI 生成 `id`，没有 `id` 时工具可生成，但跨节点引用必须使用 `id`。
+- topic title 可能重复，路径引用会不稳定。
+  - 处理方式：默认禁止同级重复标题；validator 输出重复位置。
 - YAML 隐式类型可能导致字符串被解析成布尔值或数字。
-  - 处理方式：schema 校验会拒绝类型不符；README 提醒 AI 对版本号、ID、日期等使用引号。
-
-## 当前仓库状态说明
-
-当前目录存在 `.git` 空目录，但不是可用 Git 仓库，因此无法完成设计文档提交。后续如果需要提交，需要先修复或重新初始化 Git 仓库。
+  - 处理方式：schema 校验会拒绝类型不符；README 提醒 AI 对版本号、路径片段等使用引号。
+- SVG 渲染库可能引入原生依赖或运行时兼容问题。
+  - 处理方式：实现计划阶段先做技术验证；如果 Bun 环境不可用，退回到 Node 兼容的转换库或明确降级为 data URI/文件图片。
