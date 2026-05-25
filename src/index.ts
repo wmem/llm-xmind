@@ -11,6 +11,13 @@ export type {
   MindMapTopic,
 } from "./types";
 
+export {
+  ImageError,
+  ParseError,
+  SchemaValidationError,
+  SemanticValidationError,
+} from "./types";
+
 export async function parseMindMapInput(_filePath: string): Promise<unknown> {
   throw new Error("not implemented");
 }

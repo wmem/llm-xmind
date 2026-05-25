@@ -4,6 +4,10 @@ import * as api from "../src/index";
 describe("public API scaffold", () => {
   test("exports the planned public entry points", () => {
     expect(Object.keys(api).sort()).toEqual([
+      "ImageError",
+      "ParseError",
+      "SchemaValidationError",
+      "SemanticValidationError",
       "generateXmindFile",
       "parseMindMapInput",
       "validateMindMapDocument",
