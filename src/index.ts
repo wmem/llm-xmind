@@ -1,3 +1,16 @@
+export type {
+  CompiledDocument,
+  CompiledSheet,
+  CompiledTopic,
+  MarkerName,
+  MindMapDocument,
+  MindMapImage,
+  MindMapRelationship,
+  MindMapSheet,
+  MindMapSummary,
+  MindMapTopic,
+} from "./types";
+
 export async function parseMindMapInput(_filePath: string): Promise<unknown> {
   throw new Error("not implemented");
 }
