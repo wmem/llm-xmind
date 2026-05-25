@@ -11,13 +11,11 @@ type SheetContext = {
   topics: TopicContext[];
 };
 
-export function validateSemantics(document: MindMapDocument): MindMapDocument {
+export function validateSemantics(document: MindMapDocument): void {
   document.sheets.forEach((sheet, sheetIndex) => {
     const context = buildSheetContext(sheet.root, `sheets[${sheetIndex}].root`);
     validateTopicReferences(context);
   });
-
-  return document;
 }
 
 function buildSheetContext(root: MindMapTopic, rootSourcePath: string): SheetContext {

@@ -21,6 +21,12 @@ describe("validateSemantics", () => {
     ).not.toThrow();
   });
 
+  test("returns void for valid document", () => {
+    const result: void = validateSemantics(document({ title: "R" }));
+
+    expect(result).toBeUndefined();
+  });
+
   test("accepts empty path referencing root", () => {
     expect(() =>
       validateSemantics(
