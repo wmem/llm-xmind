@@ -168,4 +168,25 @@ describe("convertToWorkbook", () => {
 
     await expect(convertToWorkbook(compiled)).rejects.toThrow('summary.toPath 不存在: ["B"]');
   });
+
+  test("fails fast when duplicate summary ranges would be silently dropped by xmind-generator", async () => {
+    const compiled = compileMindMapDocument({
+      version: "1",
+      sheets: [
+        {
+          title: "S",
+          root: {
+            title: "R",
+            children: [{ title: "A" }, { title: "B" }],
+            summaries: [
+              { title: "first", fromPath: ["A"], toPath: ["B"] },
+              { title: "second", fromPath: ["B"], toPath: ["A"] },
+            ],
+          },
+        },
+      ],
+    });
+
+    await expect(convertToWorkbook(compiled)).rejects.toThrow("summary 范围重复");
+  });
 });

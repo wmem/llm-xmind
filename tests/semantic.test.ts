@@ -163,6 +163,43 @@ describe("validateSemantics", () => {
     }
   });
 
+  test("rejects duplicate summary ranges under the same owner topic", () => {
+    try {
+      validateSemantics(
+        document({
+          title: "R",
+          children: [{ title: "A" }, { title: "B" }],
+          summaries: [
+            { title: "first", fromPath: ["A"], toPath: ["B"] },
+            { title: "second", fromPath: ["B"], toPath: ["A"] },
+          ],
+        }),
+      );
+      throw new Error("expected validateSemantics to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SemanticValidationError);
+      expect((error as SemanticValidationError).path).toBe("sheets[0].root.summaries[1]");
+      expect((error as Error).message).toContain("summary 范围重复");
+      expect((error as Error).message).toContain("B");
+      expect((error as Error).message).toContain("A");
+    }
+  });
+
+  test("rejects duplicate summary ranges in the same direction under the same owner topic", () => {
+    expect(() =>
+      validateSemantics(
+        document({
+          title: "R",
+          children: [{ title: "A" }, { title: "B" }],
+          summaries: [
+            { title: "first", fromPath: ["A"], toPath: ["B"] },
+            { title: "second", fromPath: ["A"], toPath: ["B"] },
+          ],
+        }),
+      ),
+    ).toThrow(SemanticValidationError);
+  });
+
   test("rejects same marker group", () => {
     expect(() =>
       validateSemantics(

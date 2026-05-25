@@ -66,6 +66,7 @@ function validateTopicReferences(context: SheetContext): void {
       );
     });
 
+    const seenSummaryRanges = new Map<string, number>();
     topic.summaries?.forEach((summary, summaryIndex) => {
       const summaryPath = `${sourcePath}.summaries[${summaryIndex}]`;
       assertExistingPath(context, summary.fromPath, `${summaryPath}.fromPath`, "summary.fromPath");
@@ -96,6 +97,18 @@ function validateTopicReferences(context: SheetContext): void {
           summaryPath,
         );
       }
+
+      const rangeKey = summaryRangeKey(topic, semanticPath, summary.fromPath, summary.toPath, summaryPath);
+      const duplicateIndex = seenSummaryRanges.get(rangeKey);
+      if (duplicateIndex !== undefined) {
+        throw new SemanticValidationError(
+          `summary 范围重复: ${formatPath(summary.fromPath)} -> ${formatPath(
+            summary.toPath,
+          )} 与 summaries[${duplicateIndex}] 冲突`,
+          summaryPath,
+        );
+      }
+      seenSummaryRanges.set(rangeKey, summaryIndex);
     });
   }
 }
@@ -112,6 +125,31 @@ function parentPath(semanticPath: string[]): string[] {
 
 function samePath(left: string[], right: string[]): boolean {
   return pathKey(left) === pathKey(right);
+}
+
+function summaryRangeKey(
+  owner: MindMapTopic,
+  ownerPath: string[],
+  fromPath: string[],
+  toPath: string[],
+  sourcePath: string,
+): string {
+  const fromIndex = directChildIndex(owner, ownerPath, fromPath);
+  const toIndex = directChildIndex(owner, ownerPath, toPath);
+  if (fromIndex < 0 || toIndex < 0) {
+    throw new SemanticValidationError(
+      `summary 端点必须是当前 topic 的直接子 topic: ${formatPath(fromPath)} -> ${formatPath(toPath)}`,
+      sourcePath,
+    );
+  }
+
+  return [fromIndex, toIndex].sort((left, right) => left - right).join(":");
+}
+
+function directChildIndex(owner: MindMapTopic, ownerPath: string[], childPath: string[]): number {
+  return (
+    owner.children?.findIndex((child) => pathKey([...ownerPath, child.title]) === pathKey(childPath)) ?? -1
+  );
 }
 
 function formatPath(semanticPath: string[]): string {

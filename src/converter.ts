@@ -62,7 +62,7 @@ async function applyTopicFields(
     builder.children(await Promise.all(compiled.children.map((child) => convertChildTopic(child, sheet))));
   }
 
-  const summaries = compiled.topic.summaries?.map((summary) => convertSummary(summary, compiled, sheet)) ?? [];
+  const summaries = convertSummaries(compiled, sheet);
   if (summaries.length) {
     builder.summaries(summaries);
   }
@@ -81,16 +81,42 @@ function convertRelationship(relationship: MindMapRelationship, sheet: CompiledS
   });
 }
 
-function convertSummary(summary: MindMapSummary, owner: CompiledTopic, sheet: CompiledSheet): SummaryBuilder {
+function convertSummaries(owner: CompiledTopic, sheet: CompiledSheet): SummaryBuilder[] {
+  const seenRanges = new Map<string, number>();
+  return (
+    owner.topic.summaries?.map((summary, summaryIndex) => {
+      const converted = convertSummary(summary, owner, sheet);
+      const duplicateIndex = seenRanges.get(converted.rangeKey);
+      if (duplicateIndex !== undefined) {
+        throw new Error(
+          `summary 范围重复: ${JSON.stringify(summary.fromPath)} -> ${JSON.stringify(
+            summary.toPath,
+          )} 与 summaries[${duplicateIndex}] 冲突`,
+        );
+      }
+      seenRanges.set(converted.rangeKey, summaryIndex);
+      return converted.builder;
+    }) ?? []
+  );
+}
+
+function convertSummary(
+  summary: MindMapSummary,
+  owner: CompiledTopic,
+  sheet: CompiledSheet,
+): { builder: SummaryBuilder; rangeKey: string } {
   const fromCompiled = resolveCompiledTopic(sheet, summary.fromPath, "summary.fromPath");
   const toCompiled = resolveCompiledTopic(sheet, summary.toPath, "summary.toPath");
   assertDirectChild(owner, fromCompiled, "summary.fromPath");
   assertDirectChild(owner, toCompiled, "summary.toPath");
 
-  return Summary(summary.title, {
-    from: fromCompiled.ref,
-    to: toCompiled.ref,
-  });
+  return {
+    builder: Summary(summary.title, {
+      from: fromCompiled.ref,
+      to: toCompiled.ref,
+    }),
+    rangeKey: summaryRangeKey(owner, fromCompiled, toCompiled),
+  };
 }
 
 function resolvePathRef(sheet: CompiledSheet, path: readonly string[], label: string): string {
@@ -109,6 +135,12 @@ function assertDirectChild(owner: CompiledTopic, topic: CompiledTopic, label: st
   if (!owner.children.includes(topic)) {
     throw new Error(`${label} 不是当前 summary 所属 topic 的直接子 topic: ${JSON.stringify(topic.path)}`);
   }
+}
+
+function summaryRangeKey(owner: CompiledTopic, from: CompiledTopic, to: CompiledTopic): string {
+  const fromIndex = owner.children.indexOf(from);
+  const toIndex = owner.children.indexOf(to);
+  return [fromIndex, toIndex].sort((left, right) => left - right).join(":");
 }
 
 function flattenTopics(topic: CompiledTopic): CompiledTopic[] {
