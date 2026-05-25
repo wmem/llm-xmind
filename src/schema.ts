@@ -64,6 +64,9 @@ export const mindMapDocumentSchema = {
       },
     },
     image: {
+      type: "object",
+      required: ["kind"],
+      discriminator: { propertyName: "kind" },
       oneOf: [
         {
           type: "object",
@@ -119,7 +122,7 @@ export const mindMapDocumentSchema = {
   },
 } as const;
 
-const ajv = new Ajv({ allErrors: true });
+const ajv = new Ajv({ allErrors: true, discriminator: true });
 const validate = ajv.compile(mindMapDocumentSchema);
 
 function formatPath(error: ErrorObject): string {

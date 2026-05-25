@@ -11,6 +11,19 @@ function expectSchemaError(input: unknown): void {
   expect(() => validateMindMapDocument(input)).toThrow(SchemaValidationError);
 }
 
+function getSchemaError(input: unknown): SchemaValidationError {
+  try {
+    validateMindMapDocument(input);
+  } catch (error) {
+    if (error instanceof SchemaValidationError) {
+      return error;
+    }
+    throw error;
+  }
+
+  throw new Error("expected SchemaValidationError");
+}
+
 describe("validateMindMapDocument schema", () => {
   test("accepts minimal document", () => {
     expect(validateMindMapDocument(minimal)).toEqual(minimal);
@@ -82,6 +95,29 @@ describe("validateMindMapDocument schema", () => {
       version: "1",
       sheets: [{ title: "S", root: { title: "R", image: { kind: "svg", content: "" } } }],
     });
+  });
+
+  test("reports helpful image variant error paths and messages", () => {
+    const unknownKindError = getSchemaError({
+      version: "1",
+      sheets: [{ title: "S", root: { title: "R", image: { kind: "url", url: "https://example.com/a.png" } } }],
+    });
+    expect(["sheets.0.root.image.kind", "sheets.0.root.image"]).toContain(unknownKindError.path ?? "");
+    expect(unknownKindError.message).toContain("kind");
+
+    const emptySvgContentError = getSchemaError({
+      version: "1",
+      sheets: [{ title: "S", root: { title: "R", image: { kind: "svg", content: "" } } }],
+    });
+    expect(emptySvgContentError.path).toBe("sheets.0.root.image.content");
+    expect(emptySvgContentError.message).toContain("content");
+
+    const invalidDataUriError = getSchemaError({
+      version: "1",
+      sheets: [{ title: "S", root: { title: "R", image: { kind: "data-uri", name: "a.png", data: "not-data-uri" } } }],
+    });
+    expect(invalidDataUriError.path).toBe("sheets.0.root.image.data");
+    expect(invalidDataUriError.message).toContain("data");
   });
 
   test("rejects empty sheets", () => {
