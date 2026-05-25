@@ -70,6 +70,13 @@ function validateTopicReferences(context: SheetContext): void {
       assertExistingPath(context, summary.fromPath, `${summaryPath}.fromPath`, "summary.fromPath");
       assertExistingPath(context, summary.toPath, `${summaryPath}.toPath`, "summary.toPath");
 
+      if (summary.fromPath.length === 0 || summary.toPath.length === 0) {
+        throw new SemanticValidationError(
+          "summary 端点必须是同一 topic 的直接子 topic，不能包含 root 本身",
+          summaryPath,
+        );
+      }
+
       if (!samePath(parentPath(summary.fromPath), parentPath(summary.toPath))) {
         throw new SemanticValidationError(
           `summary 范围必须引用同一个 parent 下的 sibling topic: ${formatPath(summary.fromPath)} -> ${formatPath(

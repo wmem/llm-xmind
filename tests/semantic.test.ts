@@ -75,6 +75,24 @@ describe("validateSemantics", () => {
     }
   });
 
+  test("rejects root as summary endpoint", () => {
+    try {
+      validateSemantics(
+        document({
+          title: "R",
+          children: [{ title: "A" }],
+          summaries: [{ title: "bad", fromPath: [], toPath: ["A"] }],
+        }),
+      );
+      throw new Error("expected validateSemantics to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SemanticValidationError);
+      expect((error as SemanticValidationError).path).toBe("sheets[0].root.summaries[0]");
+      expect((error as Error).message).toContain("直接子 topic");
+      expect((error as Error).message).toContain("root");
+    }
+  });
+
   test("rejects duplicate sibling titles", () => {
     expect(() =>
       validateSemantics(
