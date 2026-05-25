@@ -187,6 +187,45 @@ describe("convertToWorkbook", () => {
       ],
     });
 
-    await expect(convertToWorkbook(compiled)).rejects.toThrow("summary 范围重复");
+    await expect(convertToWorkbook(compiled)).rejects.toThrow("summary 范围冲突");
+  });
+
+  test("fails fast when summary ranges overlap under the same owner topic", async () => {
+    const compiled = compileMindMapDocument({
+      version: "1",
+      sheets: [
+        {
+          title: "S",
+          root: {
+            title: "R",
+            children: [{ title: "A" }, { title: "B" }, { title: "C" }],
+            summaries: [
+              { title: "first", fromPath: ["A"], toPath: ["B"] },
+              { title: "second", fromPath: ["B"], toPath: ["C"] },
+            ],
+          },
+        },
+      ],
+    });
+
+    await expect(convertToWorkbook(compiled)).rejects.toThrow("summary 范围冲突");
+  });
+
+  test("fails fast when a single-topic summary is converted directly", async () => {
+    const compiled = compileMindMapDocument({
+      version: "1",
+      sheets: [
+        {
+          title: "S",
+          root: {
+            title: "R",
+            children: [{ title: "A" }, { title: "B" }],
+            summaries: [{ title: "single", fromPath: ["A"], toPath: ["A"] }],
+          },
+        },
+      ],
+    });
+
+    await expect(convertToWorkbook(compiled)).rejects.toThrow("summary 不支持单点范围");
   });
 });

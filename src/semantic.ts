@@ -13,6 +13,12 @@ type SheetContext = {
   topics: TopicContext[];
 };
 
+type SummaryRange = {
+  start: number;
+  end: number;
+  summaryIndex: number;
+};
+
 export function validateSemantics(document: MindMapDocument): void {
   document.sheets.forEach((sheet, sheetIndex) => {
     const context = buildSheetContext(sheet.root, `sheets[${sheetIndex}].root`);
@@ -66,7 +72,7 @@ function validateTopicReferences(context: SheetContext): void {
       );
     });
 
-    const seenSummaryRanges = new Map<string, number>();
+    const seenSummaryRanges: SummaryRange[] = [];
     topic.summaries?.forEach((summary, summaryIndex) => {
       const summaryPath = `${sourcePath}.summaries[${summaryIndex}]`;
       assertExistingPath(context, summary.fromPath, `${summaryPath}.fromPath`, "summary.fromPath");
@@ -98,17 +104,17 @@ function validateTopicReferences(context: SheetContext): void {
         );
       }
 
-      const rangeKey = summaryRangeKey(topic, semanticPath, summary.fromPath, summary.toPath, summaryPath);
-      const duplicateIndex = seenSummaryRanges.get(rangeKey);
-      if (duplicateIndex !== undefined) {
+      const range = summaryRange(topic, semanticPath, summary.fromPath, summary.toPath, summaryIndex, summaryPath);
+      const conflictedRange = seenSummaryRanges.find((existing) => isOverlappingRange(existing, range));
+      if (conflictedRange) {
         throw new SemanticValidationError(
-          `summary 范围重复: ${formatPath(summary.fromPath)} -> ${formatPath(
+          `summary 范围冲突: ${formatPath(summary.fromPath)} -> ${formatPath(
             summary.toPath,
-          )} 与 summaries[${duplicateIndex}] 冲突`,
+          )} 与 summaries[${conflictedRange.summaryIndex}] 冲突`,
           summaryPath,
         );
       }
-      seenSummaryRanges.set(rangeKey, summaryIndex);
+      seenSummaryRanges.push(range);
     });
   }
 }
@@ -127,13 +133,14 @@ function samePath(left: string[], right: string[]): boolean {
   return pathKey(left) === pathKey(right);
 }
 
-function summaryRangeKey(
+function summaryRange(
   owner: MindMapTopic,
   ownerPath: string[],
   fromPath: string[],
   toPath: string[],
+  summaryIndex: number,
   sourcePath: string,
-): string {
+): SummaryRange {
   const fromIndex = directChildIndex(owner, ownerPath, fromPath);
   const toIndex = directChildIndex(owner, ownerPath, toPath);
   if (fromIndex < 0 || toIndex < 0) {
@@ -143,13 +150,25 @@ function summaryRangeKey(
     );
   }
 
-  return [fromIndex, toIndex].sort((left, right) => left - right).join(":");
+  if (fromIndex === toIndex) {
+    throw new SemanticValidationError(`summary 不支持单点范围: ${formatPath(fromPath)}`, sourcePath);
+  }
+
+  return {
+    start: Math.min(fromIndex, toIndex),
+    end: Math.max(fromIndex, toIndex),
+    summaryIndex,
+  };
 }
 
 function directChildIndex(owner: MindMapTopic, ownerPath: string[], childPath: string[]): number {
   return (
     owner.children?.findIndex((child) => pathKey([...ownerPath, child.title]) === pathKey(childPath)) ?? -1
   );
+}
+
+function isOverlappingRange(left: SummaryRange, right: SummaryRange): boolean {
+  return left.start <= right.end && right.start <= left.end;
 }
 
 function formatPath(semanticPath: string[]): string {

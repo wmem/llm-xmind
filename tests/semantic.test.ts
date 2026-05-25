@@ -179,7 +179,7 @@ describe("validateSemantics", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(SemanticValidationError);
       expect((error as SemanticValidationError).path).toBe("sheets[0].root.summaries[1]");
-      expect((error as Error).message).toContain("summary 范围重复");
+      expect((error as Error).message).toContain("summary 范围冲突");
       expect((error as Error).message).toContain("B");
       expect((error as Error).message).toContain("A");
     }
@@ -198,6 +198,76 @@ describe("validateSemantics", () => {
         }),
       ),
     ).toThrow(SemanticValidationError);
+  });
+
+  test("rejects single-topic summary ranges", () => {
+    try {
+      validateSemantics(
+        document({
+          title: "R",
+          children: [{ title: "A" }, { title: "B" }],
+          summaries: [{ title: "single", fromPath: ["A"], toPath: ["A"] }],
+        }),
+      );
+      throw new Error("expected validateSemantics to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SemanticValidationError);
+      expect((error as SemanticValidationError).path).toBe("sheets[0].root.summaries[0]");
+      expect((error as Error).message).toContain("单点");
+      expect((error as Error).message).toContain("A");
+    }
+  });
+
+  test("rejects overlapping summary ranges under the same owner topic", () => {
+    try {
+      validateSemantics(
+        document({
+          title: "R",
+          children: [{ title: "A" }, { title: "B" }, { title: "C" }],
+          summaries: [
+            { title: "first", fromPath: ["A"], toPath: ["B"] },
+            { title: "second", fromPath: ["B"], toPath: ["C"] },
+          ],
+        }),
+      );
+      throw new Error("expected validateSemantics to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SemanticValidationError);
+      expect((error as SemanticValidationError).path).toBe("sheets[0].root.summaries[1]");
+      expect((error as Error).message).toContain("summary 范围冲突");
+      expect((error as Error).message).toContain("B");
+      expect((error as Error).message).toContain("C");
+    }
+  });
+
+  test("rejects single-topic summary when it overlaps with another summary range", () => {
+    expect(() =>
+      validateSemantics(
+        document({
+          title: "R",
+          children: [{ title: "A" }, { title: "B" }],
+          summaries: [
+            { title: "single", fromPath: ["A"], toPath: ["A"] },
+            { title: "span", fromPath: ["A"], toPath: ["B"] },
+          ],
+        }),
+      ),
+    ).toThrow(SemanticValidationError);
+  });
+
+  test("accepts non-overlapping summary ranges under the same owner topic", () => {
+    expect(() =>
+      validateSemantics(
+        document({
+          title: "R",
+          children: [{ title: "A" }, { title: "B" }, { title: "C" }, { title: "D" }],
+          summaries: [
+            { title: "left", fromPath: ["A"], toPath: ["B"] },
+            { title: "right", fromPath: ["C"], toPath: ["D"] },
+          ],
+        }),
+      ),
+    ).not.toThrow();
   });
 
   test("rejects same marker group", () => {

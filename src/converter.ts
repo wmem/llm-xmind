@@ -15,6 +15,12 @@ import { markerNameToMarkerId } from "./markers";
 import { pathKey } from "./path";
 import type { CompiledDocument, CompiledSheet, CompiledTopic, MindMapRelationship, MindMapSummary } from "./types";
 
+type SummaryRange = {
+  start: number;
+  end: number;
+  summaryIndex: number;
+};
+
 export async function convertToWorkbook(document: CompiledDocument): Promise<WorkbookBuilder> {
   const roots = await Promise.all(document.sheets.map(convertSheet));
   return Workbook(roots);
@@ -82,19 +88,19 @@ function convertRelationship(relationship: MindMapRelationship, sheet: CompiledS
 }
 
 function convertSummaries(owner: CompiledTopic, sheet: CompiledSheet): SummaryBuilder[] {
-  const seenRanges = new Map<string, number>();
+  const seenRanges: SummaryRange[] = [];
   return (
     owner.topic.summaries?.map((summary, summaryIndex) => {
-      const converted = convertSummary(summary, owner, sheet);
-      const duplicateIndex = seenRanges.get(converted.rangeKey);
-      if (duplicateIndex !== undefined) {
+      const converted = convertSummary(summary, owner, sheet, summaryIndex);
+      const conflictedRange = seenRanges.find((existing) => isOverlappingRange(existing, converted.range));
+      if (conflictedRange) {
         throw new Error(
-          `summary 范围重复: ${JSON.stringify(summary.fromPath)} -> ${JSON.stringify(
+          `summary 范围冲突: ${JSON.stringify(summary.fromPath)} -> ${JSON.stringify(
             summary.toPath,
-          )} 与 summaries[${duplicateIndex}] 冲突`,
+          )} 与 summaries[${conflictedRange.summaryIndex}] 冲突`,
         );
       }
-      seenRanges.set(converted.rangeKey, summaryIndex);
+      seenRanges.push(converted.range);
       return converted.builder;
     }) ?? []
   );
@@ -104,7 +110,8 @@ function convertSummary(
   summary: MindMapSummary,
   owner: CompiledTopic,
   sheet: CompiledSheet,
-): { builder: SummaryBuilder; rangeKey: string } {
+  summaryIndex: number,
+): { builder: SummaryBuilder; range: SummaryRange } {
   const fromCompiled = resolveCompiledTopic(sheet, summary.fromPath, "summary.fromPath");
   const toCompiled = resolveCompiledTopic(sheet, summary.toPath, "summary.toPath");
   assertDirectChild(owner, fromCompiled, "summary.fromPath");
@@ -115,7 +122,7 @@ function convertSummary(
       from: fromCompiled.ref,
       to: toCompiled.ref,
     }),
-    rangeKey: summaryRangeKey(owner, fromCompiled, toCompiled),
+    range: summaryRange(owner, fromCompiled, toCompiled, summaryIndex),
   };
 }
 
@@ -137,10 +144,21 @@ function assertDirectChild(owner: CompiledTopic, topic: CompiledTopic, label: st
   }
 }
 
-function summaryRangeKey(owner: CompiledTopic, from: CompiledTopic, to: CompiledTopic): string {
+function summaryRange(owner: CompiledTopic, from: CompiledTopic, to: CompiledTopic, summaryIndex: number): SummaryRange {
   const fromIndex = owner.children.indexOf(from);
   const toIndex = owner.children.indexOf(to);
-  return [fromIndex, toIndex].sort((left, right) => left - right).join(":");
+  if (fromIndex === toIndex) {
+    throw new Error(`summary 不支持单点范围: ${JSON.stringify(from.path)}`);
+  }
+  return {
+    start: Math.min(fromIndex, toIndex),
+    end: Math.max(fromIndex, toIndex),
+    summaryIndex,
+  };
+}
+
+function isOverlappingRange(left: SummaryRange, right: SummaryRange): boolean {
+  return left.start <= right.end && right.start <= left.end;
 }
 
 function flattenTopics(topic: CompiledTopic): CompiledTopic[] {
