@@ -19,10 +19,7 @@ export {
 } from "./types";
 
 export { parseMindMapInput } from "./parser";
-
-export function validateMindMapDocument(_input: unknown): void {
-  throw new Error("not implemented");
-}
+export { validateMindMapDocument } from "./schema";
 
 export async function generateXmindFile(_input: unknown, _outputPath: string): Promise<void> {
   throw new Error("not implemented");
