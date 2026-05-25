@@ -1,3 +1,4 @@
+import { pathKey } from "./path";
 import type {
   CompiledDocument,
   CompiledSheet,
@@ -5,6 +6,7 @@ import type {
   MindMapDocument,
   MindMapTopic,
 } from "./types";
+import { SemanticValidationError } from "./types";
 
 export function compileMindMapDocument(document: MindMapDocument): CompiledDocument {
   return {
@@ -33,10 +35,19 @@ function compileTopic(
     children: [],
   };
 
-  pathIndex.set(JSON.stringify(path), compiled);
+  const key = pathKey(path);
+  if (pathIndex.has(key)) {
+    throw new SemanticValidationError(`重复 topic path: ${formatPath(path)}`, formatPath(path));
+  }
+
+  pathIndex.set(key, compiled);
   compiled.children = (topic.children ?? []).map((child, index) =>
     compileTopic(child, [...path, child.title], `${ref}-${index}`, pathIndex),
   );
 
   return compiled;
+}
+
+function formatPath(path: readonly string[]): string {
+  return path.length === 0 ? "[]" : path.join(" > ");
 }

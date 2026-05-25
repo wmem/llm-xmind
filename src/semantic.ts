@@ -1,4 +1,5 @@
 import { assertNoMarkerGroupConflict } from "./markers";
+import { pathKey } from "./path";
 import { SemanticValidationError, type MindMapDocument, type MindMapTopic } from "./types";
 
 type TopicContext = {
@@ -111,10 +112,6 @@ function parentPath(semanticPath: string[]): string[] {
 
 function samePath(left: string[], right: string[]): boolean {
   return pathKey(left) === pathKey(right);
-}
-
-function pathKey(semanticPath: string[]): string {
-  return JSON.stringify(semanticPath);
 }
 
 function formatPath(semanticPath: string[]): string {

@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { compileMindMapDocument } from "../src/compiler";
+import { pathKey } from "../src/path";
+import { SemanticValidationError } from "../src/types";
 
 describe("compileMindMapDocument", () => {
   test("generates stable refs and path index", () => {
@@ -18,10 +20,10 @@ describe("compileMindMapDocument", () => {
 
     const sheet = compiled.sheets[0];
     expect(sheet.root.ref).toBe("sheet-0/topic");
-    expect(sheet.pathIndex.get(JSON.stringify([]))?.ref).toBe("sheet-0/topic");
-    expect(sheet.pathIndex.get(JSON.stringify(["A"]))?.ref).toBe("sheet-0/topic-0");
-    expect(sheet.pathIndex.get(JSON.stringify(["A", "A1"]))?.ref).toBe("sheet-0/topic-0-0");
-    expect(sheet.pathIndex.get(JSON.stringify(["B"]))?.ref).toBe("sheet-0/topic-1");
+    expect(sheet.pathIndex.get(pathKey([]))?.ref).toBe("sheet-0/topic");
+    expect(sheet.pathIndex.get(pathKey(["A"]))?.ref).toBe("sheet-0/topic-0");
+    expect(sheet.pathIndex.get(pathKey(["A", "A1"]))?.ref).toBe("sheet-0/topic-0-0");
+    expect(sheet.pathIndex.get(pathKey(["B"]))?.ref).toBe("sheet-0/topic-1");
   });
 
   test("uses different sheet indexes for refs", () => {
@@ -63,11 +65,43 @@ describe("compileMindMapDocument", () => {
 
     const firstSheet = compiled.sheets[0];
     const secondSheet = compiled.sheets[1];
-    const samePathKey = JSON.stringify(["Same"]);
+    const samePathKey = pathKey(["Same"]);
 
     expect(firstSheet.pathIndex.get(samePathKey)?.ref).toBe("sheet-0/topic-0");
     expect(secondSheet.pathIndex.get(samePathKey)?.ref).toBe("sheet-1/topic-0");
     expect(firstSheet.pathIndex.get(samePathKey)).not.toBe(secondSheet.pathIndex.get(samePathKey));
     expect(firstSheet.pathIndex.has("Same")).toBe(false);
+  });
+
+  test("throws SemanticValidationError before duplicate topic paths overwrite path index entries", () => {
+    expect(() =>
+      compileMindMapDocument({
+        version: "1",
+        sheets: [
+          {
+            title: "S",
+            root: {
+              title: "R",
+              children: [{ title: "A" }, { title: "A" }],
+            },
+          },
+        ],
+      }),
+    ).toThrow(SemanticValidationError);
+
+    expect(() =>
+      compileMindMapDocument({
+        version: "1",
+        sheets: [
+          {
+            title: "S",
+            root: {
+              title: "R",
+              children: [{ title: "A" }, { title: "A" }],
+            },
+          },
+        ],
+      }),
+    ).toThrow(/重复 topic path.*A/);
   });
 });
