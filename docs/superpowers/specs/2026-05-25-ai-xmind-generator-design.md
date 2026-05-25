@@ -35,6 +35,14 @@
 
 第一版只围绕这些能力建模。没有公开 builder 支持的能力不进入 AI schema。
 
+验证补充：
+
+- `xmind-generator@1.0.1` 在 Bun 1.3.14 下可以生成 `.xmind` 文件。
+- `xmind-generator` 运行时代码依赖 `jszip`，但包元数据把 `jszip` 放在 `devDependencies`。本项目需要显式安装 `jszip@3.10.1`。
+- SVG 文件可以作为 `NamedResourceData` 打包进 `.xmind`，XMind 与 MindMaster 均可正常显示。
+- SVG data URI 如果原样传给 `xmind-generator`，资源文件内容会是 `data:image/svg+xml;base64,...` 字符串。XMind 可显示，MindMaster 不显示。
+- SVG data URI 需要先规范化为原始 SVG XML 内容，再以 `.svg` 资源写入。该方式已验证 XMind 与 MindMaster 均可正常显示。
+
 ## 目标
 
 - 定义 AI 友好的输入 schema，让 AI 尽量只输出自然内容和层级结构。
@@ -230,14 +238,14 @@ type MindMapImage =
 
 设计规则：
 
-- `data-uri` 直接转换为 `NamedResourceData`。
+- 非 SVG `data-uri` 直接转换为 `NamedResourceData`。
+- SVG `data-uri` 必须先解码并规范化为原始 SVG XML 内容，不能把 data URI 字符串原样写入 `.svg` 资源。
 - `file` 使用 `xmind-generator` 的 `readImageFile` 读取，保持库原生支持能力。
-- `svg` 作为 AI 友好输入格式支持，但转换层不直接假定 XMind 客户端可显示 SVG。
-- SVG 输入默认渲染成 PNG，再以 `NamedResourceData` 传给 `xmind-generator`。
-- SVG 渲染失败时返回可定位错误，不静默丢图。
+- `svg` 作为 AI 友好输入格式支持，转换为 `{ name: "*.svg", data: Buffer.from(svgXml) }`。
+- SVG XML 需要做基础格式校验，失败时返回可定位错误，不静默丢图。
 - 第一版不支持远程 URL 图片下载。
 
-说明：`xmind-generator` 的 `NamedResourceData` 允许任意扩展名文件被打包进资源目录，但这不等价于 XMind 客户端一定能显示该格式。因此 SVG 需要在本工具侧转换为 PNG。
+说明：`xmind-generator` 的 `NamedResourceData` 允许任意扩展名文件被打包进资源目录。已验证原始 SVG XML 资源可被 XMind 和 MindMaster 显示；但 SVG data URI 原样写入会影响 MindMaster，因此必须规范化。
 
 ### Relationship
 
@@ -346,7 +354,7 @@ type CompiledTopic = {
 - `src/parser`：根据扩展名解析 JSON/YAML。
 - `src/validator`：执行 schema 校验和语义校验。
 - `src/compiler`：生成内部 ref、path 索引和编译模型。
-- `src/image`：处理 data URI、文件图片和 SVG 转 PNG。
+- `src/image`：处理 data URI、文件图片和 SVG 规范化。
 - `src/converter`：把编译模型转成 `xmind-generator` builder。
 - `src/writer`：调用 `xmind-generator` 写出本地文件。
 - `src/cli`：解析命令行参数，连接 parser、validator、compiler、converter、writer。
@@ -381,7 +389,7 @@ JSON/YAML 文件
 - `ParseError`：JSON/YAML 语法错误、文件不存在、扩展名不支持。
 - `SchemaValidationError`：字段类型、必填字段、枚举值、数组元素等 schema 错误。
 - `SemanticValidationError`：同级标题重复、路径引用非法、summary 范围非法、marker 同组冲突等错误。
-- `ImageError`：图片文件读取失败、data URI 非法、SVG 渲染失败。
+- `ImageError`：图片文件读取失败、data URI 非法、SVG 格式非法。
 
 CLI 输出需要包含：
 
@@ -400,7 +408,7 @@ CLI 输出需要包含：
 - schema 测试：覆盖每一个字段的合法与非法形态。
 - semantic 测试：覆盖同级标题唯一性、路径引用、summary 父节点约束、marker 同组冲突。
 - compiler 测试：确认内部 ref 生成稳定，path 索引正确。
-- image 测试：覆盖 data URI、文件图片、SVG 转 PNG、非法 SVG。
+- image 测试：覆盖 data URI、SVG data URI 规范化、文件图片、SVG XML、非法 SVG。
 - converter 测试：覆盖 schema 中每一个可转换字段，确认确实传递到 `xmind-generator` 对应结构。
 - CLI 测试：从 fixture 输入生成 `.xmind` 文件，并验证文件存在且非空。
 
@@ -433,12 +441,11 @@ fixture 分层：
 - 使用 TypeScript。
 - 尽量保持 ESM。
 - schema 与 TS 类型需要避免长期漂移。优先从一个来源生成另一个来源，或用测试检测两者一致性。
-- SVG 转 PNG 需要选择可在 Bun/Node 环境落地的库，并用 fixture 验证实际输出。
 - 依赖保持克制，核心依赖预计包括：
   - `xmind-generator`
+  - `jszip@3.10.1`
   - YAML 解析库
   - JSON Schema 校验库
-  - SVG 渲染或图片转换库
   - CLI 参数解析库或轻量自写解析
 
 ## 验收标准
@@ -448,7 +455,7 @@ fixture 分层：
 - `bun run llm-xmind fixtures/complete.yaml -o tmp/complete.xmind` 能生成非空文件。
 - schema 中声明的每个字段都有 validator 测试覆盖。
 - schema 中声明的每个可转换字段都有 converter 测试覆盖。
-- SVG 图片输入能转换为可打包的 PNG 资源。
+- SVG 文件、SVG XML、SVG data URI 都能转换为可打包的原始 SVG 资源。
 - 非法输入能给出可定位的错误路径。
 - README 包含 AI 生成 JSON/YAML 的示例提示词和输入示例。
 
@@ -462,5 +469,5 @@ fixture 分层：
   - 处理方式：默认禁止同级重复标题；validator 输出重复位置。
 - YAML 隐式类型可能导致字符串被解析成布尔值或数字。
   - 处理方式：schema 校验会拒绝类型不符；README 提醒 AI 对版本号、路径片段等使用引号。
-- SVG 渲染库可能引入原生依赖或运行时兼容问题。
-  - 处理方式：实现计划阶段先做技术验证；如果 Bun 环境不可用，退回到 Node 兼容的转换库或明确降级为 data URI/文件图片。
+- `xmind-generator` 未把运行时依赖 `jszip` 声明在 `dependencies`。
+  - 处理方式：本项目显式依赖 `jszip@3.10.1`，并用生成 `.xmind` 的 CLI 测试覆盖该问题。
