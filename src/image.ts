@@ -12,13 +12,12 @@ export async function resolveMindMapImage(image: MindMapImage): Promise<NamedRes
 
   if (image.kind === "svg") {
     const svg = normalizeSvgXml(image.content, "image.content");
-    return { name: image.name ?? "image.svg", data: Buffer.from(svg, "utf8") };
+    return { name: normalizeSvgName(image.name ?? "image.svg"), data: Buffer.from(svg, "utf8") };
   }
 
   if (isSvgDataUri(image.data)) {
     const svg = normalizeSvgXml(decodeSvgDataUri(image.data), "image.data");
-    const name = image.name.toLowerCase().endsWith(".svg") ? image.name : `${image.name}.svg`;
-    return { name, data: Buffer.from(svg, "utf8") };
+    return { name: normalizeSvgName(image.name), data: Buffer.from(svg, "utf8") };
   }
 
   return { name: image.name, data: image.data };
@@ -26,6 +25,10 @@ export async function resolveMindMapImage(image: MindMapImage): Promise<NamedRes
 
 function isSvgDataUri(value: string): boolean {
   return /^data:image\/svg\+xml[;,]/i.test(value);
+}
+
+function normalizeSvgName(name: string): string {
+  return name.toLowerCase().endsWith(".svg") ? name : `${name}.svg`;
 }
 
 function decodeSvgDataUri(value: string): string {

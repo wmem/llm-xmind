@@ -50,6 +50,16 @@ describe("resolveMindMapImage", () => {
     expect(Buffer.from(image.data as Uint8Array).toString("utf8")).toContain("<svg");
   });
 
+  test("appends .svg suffix for inline SVG name without suffix", async () => {
+    const image = await resolveMindMapImage({ kind: "svg", name: "diagram", content: svg });
+    expect(image.name).toBe("diagram.svg");
+  });
+
+  test("keeps .svg suffix for inline SVG name with suffix", async () => {
+    const image = await resolveMindMapImage({ kind: "svg", name: "diagram.svg", content: svg });
+    expect(image.name).toBe("diagram.svg");
+  });
+
   test("reads file image through xmind-generator compatible data", async () => {
     const dir = await mkdtemp(join(tmpdir(), "llm-xmind-image-"));
     const file = join(dir, "sample.svg");
