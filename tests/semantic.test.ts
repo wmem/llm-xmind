@@ -57,6 +57,24 @@ describe("validateSemantics", () => {
     ).not.toThrow();
   });
 
+  test("rejects summary defined outside common parent topic", () => {
+    try {
+      validateSemantics(
+        document({
+          title: "R",
+          children: [{ title: "A", children: [{ title: "A1" }, { title: "A2" }] }],
+          summaries: [{ title: "bad", fromPath: ["A", "A1"], toPath: ["A", "A2"] }],
+        }),
+      );
+      throw new Error("expected validateSemantics to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SemanticValidationError);
+      expect((error as SemanticValidationError).path).toBe("sheets[0].root.summaries[0]");
+      expect((error as Error).message).toContain("共同父");
+      expect((error as Error).message).toContain("A");
+    }
+  });
+
   test("rejects duplicate sibling titles", () => {
     expect(() =>
       validateSemantics(

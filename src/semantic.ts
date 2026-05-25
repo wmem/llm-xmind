@@ -3,6 +3,7 @@ import { SemanticValidationError, type MindMapDocument, type MindMapTopic } from
 
 type TopicContext = {
   topic: MindMapTopic;
+  semanticPath: string[];
   sourcePath: string;
 };
 
@@ -24,7 +25,7 @@ function buildSheetContext(root: MindMapTopic, rootSourcePath: string): SheetCon
 
   const visit = (topic: MindMapTopic, semanticPath: string[], sourcePath: string): void => {
     pathIndex.set(pathKey(semanticPath), topic);
-    topics.push({ topic, sourcePath });
+    topics.push({ topic, semanticPath, sourcePath });
 
     if (topic.markers) {
       assertNoMarkerGroupConflict(topic.markers, `${sourcePath}.markers`);
@@ -48,7 +49,7 @@ function buildSheetContext(root: MindMapTopic, rootSourcePath: string): SheetCon
 }
 
 function validateTopicReferences(context: SheetContext): void {
-  for (const { topic, sourcePath } of context.topics) {
+  for (const { topic, semanticPath, sourcePath } of context.topics) {
     topic.relationships?.forEach((relationship, relationshipIndex) => {
       assertExistingPath(
         context,
@@ -73,6 +74,16 @@ function validateTopicReferences(context: SheetContext): void {
         throw new SemanticValidationError(
           `summary 范围必须引用同一个 parent 下的 sibling topic: ${formatPath(summary.fromPath)} -> ${formatPath(
             summary.toPath,
+          )}`,
+          summaryPath,
+        );
+      }
+
+      const commonParentPath = parentPath(summary.fromPath);
+      if (!samePath(commonParentPath, semanticPath)) {
+        throw new SemanticValidationError(
+          `summary 必须定义在共同父 topic 上: 当前 ${formatPath(semanticPath)}, 共同父 ${formatPath(
+            commonParentPath,
           )}`,
           summaryPath,
         );
