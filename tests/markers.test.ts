@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Marker, type MarkerId } from "xmind-generator";
+import { Marker, MarkerId } from "xmind-generator";
 import {
   assertNoMarkerGroupConflict,
   isMarkerName,
@@ -8,20 +8,22 @@ import {
 } from "../src/markers";
 import { SemanticValidationError } from "../src/types";
 
-describe("markers", () => {
-  const markerGroups = [
-    Marker.Priority,
-    Marker.Smiley,
-    Marker.Task,
-    Marker.Flag,
-    Marker.Star,
-    Marker.People,
-    Marker.Arrow,
-    Marker.Month,
-    Marker.Week,
-  ];
+type MarkerGroup = Record<string, MarkerId>;
 
-  const markerIds = (group: Record<string, MarkerId>): string[] => Object.values(group).map((marker) => marker.id);
+function collectMarkerGroups(): MarkerGroup[] {
+  return Object.values(Marker).filter((value): value is MarkerGroup => {
+    return (
+      typeof value === "object" &&
+      value !== null &&
+      Object.values(value).every((item) => item instanceof MarkerId)
+    );
+  });
+}
+
+describe("markers", () => {
+  const markerGroups = collectMarkerGroups();
+  const markerIds = (group: MarkerGroup): string[] => Object.values(group).map((marker) => marker.id);
+  const actualMarkerIds = markerGroups.flatMap(markerIds);
   const sorted = (values: string[]): string[] => [...values].sort();
 
   test("recognizes supported marker names", () => {
@@ -31,8 +33,6 @@ describe("markers", () => {
   });
 
   test("exports all Marker ids supported by xmind-generator", () => {
-    const actualMarkerIds = markerGroups.flatMap(markerIds);
-
     expect(sorted(supportedMarkerNames)).toEqual(sorted(actualMarkerIds));
   });
 
@@ -54,7 +54,7 @@ describe("markers", () => {
   });
 
   test("rejects same marker group conflict for every marker group", () => {
-    for (const group of markerGroups) {
+    for (const group of markerGroups.filter((markerGroup) => Object.values(markerGroup).length >= 2)) {
       const [first, second] = markerIds(group);
 
       expect(() => assertNoMarkerGroupConflict([first, second], "root.markers")).toThrow(SemanticValidationError);
