@@ -1,6 +1,6 @@
 # llm-xmind
 
-`llm-xmind` 是一个 AI 友好的 XMind 生成工具。推荐工作流是：AI 只输出严格的 YAML/JSON 结构化数据，本工具负责解析、校验语法和语义约束，然后生成 `.xmind` 文件。
+`llm-xmind` 是一个 AI 友好的 XMind 生成工具。推荐工作流是：AI 只输出YAML/JSON 结构化数据，本工具负责解析、校验语法和语义约束，然后生成 `.xmind` 文件。
 
 ## 安装依赖
 
