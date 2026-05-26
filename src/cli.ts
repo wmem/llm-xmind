@@ -1,15 +1,38 @@
 #!/usr/bin/env bun
 
-import { generateXmindFile, parseMindMapInput, validateMindMapDocument } from "./index";
+import {
+  aiTemplate,
+  generateXmindFile,
+  mindMapDocumentSchema,
+  parseMindMapInput,
+  validateMindMapDocument,
+} from "./index";
 
-const usage = "用法: llm-xmind <input> -o|--output <output>";
+const usage = [
+  "用法: llm-xmind <input> -o|--output <output>",
+  "      llm-xmind --print-schema",
+  "      llm-xmind --print-ai-template",
+].join("\n");
 
-type CliArgs = {
-  input: string;
-  output: string;
-};
+type CliArgs =
+  | {
+      mode: "generate";
+      input: string;
+      output: string;
+    }
+  | {
+      mode: "print-schema" | "print-ai-template";
+    };
 
 function parseArgs(args: string[]): CliArgs {
+  if (args.length === 1 && args[0] === "--print-schema") {
+    return { mode: "print-schema" };
+  }
+
+  if (args.length === 1 && args[0] === "--print-ai-template") {
+    return { mode: "print-ai-template" };
+  }
+
   if (args.length !== 3) {
     throw new Error(usage);
   }
@@ -19,7 +42,7 @@ function parseArgs(args: string[]): CliArgs {
     throw new Error(usage);
   }
 
-  return { input, output };
+  return { mode: "generate", input, output };
 }
 
 function formatError(error: unknown): string {
@@ -30,11 +53,23 @@ function formatError(error: unknown): string {
 
 async function main(): Promise<void> {
   try {
-    const { input, output } = parseArgs(Bun.argv.slice(2));
-    const parsed = await parseMindMapInput(input);
-    const document = validateMindMapDocument(parsed);
-    await generateXmindFile(document, output);
-    console.log(`generated ${output}`);
+    const args = parseArgs(Bun.argv.slice(2));
+
+    switch (args.mode) {
+      case "print-schema":
+        console.log(JSON.stringify(mindMapDocumentSchema, null, 2));
+        break;
+      case "print-ai-template":
+        console.log(aiTemplate.trimEnd());
+        break;
+      case "generate": {
+        const parsed = await parseMindMapInput(args.input);
+        const document = validateMindMapDocument(parsed);
+        await generateXmindFile(document, args.output);
+        console.log(`generated ${args.output}`);
+        break;
+      }
+    }
     process.exit(0);
   } catch (error) {
     console.error(formatError(error));

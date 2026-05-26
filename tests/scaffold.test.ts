@@ -8,7 +8,9 @@ describe("public API scaffold", () => {
       "ParseError",
       "SchemaValidationError",
       "SemanticValidationError",
+      "aiTemplate",
       "generateXmindFile",
+      "mindMapDocumentSchema",
       "parseMindMapInput",
       "validateMindMapDocument",
     ]);

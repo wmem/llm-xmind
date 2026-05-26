@@ -19,5 +19,6 @@ export {
 } from "./types";
 
 export { parseMindMapInput } from "./parser";
-export { validateMindMapDocument } from "./schema";
+export { mindMapDocumentSchema, validateMindMapDocument } from "./schema";
 export { generateXmindFile } from "./writer";
+export { aiTemplate } from "./assets";

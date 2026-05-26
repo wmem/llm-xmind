@@ -78,6 +78,38 @@ describe("CLI", () => {
     expect(stderr).toContain("用法");
   });
 
+  test("prints schema JSON for AI/tool integration", async () => {
+    const proc = Bun.spawn(["bun", "run", "src/cli.ts", "--print-schema"], {
+      cwd: process.cwd(),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    const exitCode = await proc.exited;
+    const stdout = await new Response(proc.stdout).text();
+    const schema = JSON.parse(stdout);
+
+    expect(exitCode).toBe(0);
+    expect(schema.properties.version.const).toBe("1");
+    expect(schema.$defs.topic.properties.children.items.$ref).toBe("#/$defs/topic");
+  });
+
+  test("prints the AI template", async () => {
+    const proc = Bun.spawn(["bun", "run", "src/cli.ts", "--print-ai-template"], {
+      cwd: process.cwd(),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    const exitCode = await proc.exited;
+    const stdout = await new Response(proc.stdout).text();
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("只输出 YAML");
+    expect(stdout).toContain("不要生成 ID");
+    expect(stdout).toContain('version: "1"');
+  });
+
   test("generates xmind from complete fixtures", async () => {
     const dir = await mkdtemp(join(tmpdir(), "llm-xmind-cli-"));
     try {

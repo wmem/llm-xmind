@@ -20,13 +20,27 @@ bun run llm-xmind fixtures/minimal.yaml -o tmp/minimal.xmind
 
 CLI 会读取 YAML 或 JSON 输入，校验通过后写出 XMind 文件。
 
+直接输出给 AI 或工具链使用的辅助文件：
+
+```bash
+bun run llm-xmind --print-schema
+bun run llm-xmind --print-ai-template
+```
+
+仓库根目录也提供同样用途的文件：
+
+- `schema.json`：AI 输入 JSON Schema。
+- `ai-template.md`：可直接发给 AI 的 YAML 输出模板。
+
 ## TypeScript API
 
 核心调用链：
 
 ```ts
 import {
+  aiTemplate,
   generateXmindFile,
+  mindMapDocumentSchema,
   parseMindMapInput,
   validateMindMapDocument,
 } from "llm-xmind";
@@ -36,6 +50,8 @@ const document = validateMindMapDocument(parsed);
 await generateXmindFile(document, "tmp/minimal.xmind");
 ```
 
+`mindMapDocumentSchema` 和 `aiTemplate` 也从包入口导出，便于上层 Agent 或应用直接注入模型上下文。
+
 也就是：
 
 ```text
@@ -44,6 +60,7 @@ parseMindMapInput -> validateMindMapDocument -> generateXmindFile
 
 ## AI 输出要求
 
+- 推荐先把 `ai-template.md` 作为提示词模板发给 AI，并把 `schema.json` 作为结构约束。
 - 只输出 YAML/JSON，不输出解释文字、Markdown 围栏或额外说明。
 - 不要生成 ID。本工具会根据标题路径解析 topic。
 - `relationships` 和 `summaries` 使用 `fromPath` / `toPath` 标题路径引用 topic。

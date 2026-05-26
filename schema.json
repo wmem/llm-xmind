@@ -1,0 +1,284 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "sheets"
+  ],
+  "properties": {
+    "version": {
+      "const": "1"
+    },
+    "sheets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/sheet"
+      }
+    }
+  },
+  "$defs": {
+    "sheet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "root"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "$ref": "#/$defs/topic"
+        }
+      }
+    },
+    "topic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "note": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "markers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "priority-1",
+              "priority-2",
+              "priority-3",
+              "priority-4",
+              "priority-5",
+              "priority-6",
+              "priority-7",
+              "smiley-laugh",
+              "smiley-smile",
+              "smiley-cry",
+              "smiley-surprise",
+              "smiley-boring",
+              "smiley-angry",
+              "smiley-embarrass",
+              "task-start",
+              "task-oct",
+              "task-quarter",
+              "task-half",
+              "task-done",
+              "task-pause",
+              "flag-red",
+              "flag-orange",
+              "flag-dark-blue",
+              "flag-purple",
+              "flag-green",
+              "flag-blue",
+              "flag-gray",
+              "star-red",
+              "star-orange",
+              "star-dark-blue",
+              "star-purple",
+              "star-green",
+              "star-blue",
+              "star-gray",
+              "people-red",
+              "people-orange",
+              "people-dark-blue",
+              "people-purple",
+              "people-green",
+              "people-blue",
+              "people-gray",
+              "arrow-left",
+              "arrow-right",
+              "arrow-up",
+              "arrow-down",
+              "arrow-left-right",
+              "arrow-up-down",
+              "arrow-refresh",
+              "month-jan",
+              "month-feb",
+              "month-mar",
+              "month-apr",
+              "month-may",
+              "month-jun",
+              "month-jul",
+              "month-sep",
+              "month-oct",
+              "month-nov",
+              "month-dec",
+              "week-sun",
+              "week-mon",
+              "week-tue",
+              "week-web",
+              "week-thu",
+              "week-fri",
+              "week-sat"
+            ]
+          }
+        },
+        "image": {
+          "$ref": "#/$defs/image"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/topic"
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relationship"
+          }
+        },
+        "summaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/summary"
+          }
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "discriminator": {
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "name",
+            "data"
+          ],
+          "properties": {
+            "kind": {
+              "const": "data-uri"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "data": {
+              "type": "string",
+              "pattern": "^data:.+"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path"
+          ],
+          "properties": {
+            "kind": {
+              "const": "file"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "content"
+          ],
+          "properties": {
+            "kind": {
+              "const": "svg"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fromPath",
+        "toPath"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "fromPath": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "toPath": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "fromPath",
+        "toPath"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fromPath": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "toPath": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}
