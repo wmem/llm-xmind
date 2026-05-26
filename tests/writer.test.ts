@@ -56,4 +56,21 @@ describe("public writer API", () => {
     expect(zip.file("content.json")).not.toBeNull();
     expect(zip.file("manifest.json")).not.toBeNull();
   });
+
+  test("rejects filesystem errors from failed writes", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "llm-xmind-writer-"));
+    const output = join(dir, "missing-parent", "output.xmind");
+    const document: MindMapDocument = {
+      version: "1",
+      sheets: [{ title: "S", root: { title: "R" } }],
+    };
+
+    try {
+      await generateXmindFile(document, output);
+      throw new Error("expected generateXmindFile to reject");
+    } catch (error) {
+      expect((error as NodeJS.ErrnoException).code).toBe("ENOENT");
+      expect((error as Error).message).not.toContain("超时");
+    }
+  });
 });
