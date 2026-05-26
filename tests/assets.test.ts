@@ -16,6 +16,9 @@ describe("AI-facing assets", () => {
     expect(template).toBe(aiTemplate);
     expect(template).toContain("只输出 YAML");
     expect(template).toContain("不要生成 ID");
+    expect(template).toContain("不要按聊天时间顺序记录流水账");
+    expect(template).toContain("topic title 只写重点");
+    expect(template).toContain("细节、证据、例子、背景、取舍放到 note");
     expect(template).toContain("schema.json");
     expect(template).toContain('version: "1"');
     expect(template).toContain("children 可以继续嵌套");
