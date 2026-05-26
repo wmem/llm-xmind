@@ -9,6 +9,7 @@
 - 不要生成 ID、ref、uuid 或任何内部引用字段。
 - topic 之间的引用只能使用标题路径 fromPath / toPath。
 - fromPath / toPath 使用字符串数组；引用 root topic 时使用 []。
+- children 可以继续嵌套，schema 不设置最大层级；实际深度受运行时内存、调用栈和 XMind 客户端能力限制。
 - 同一个 parent 下的同级 topic title 必须唯一。
 - relationship 可以引用 root；summary 不能引用 root。
 - summary 必须定义在 fromPath 和 toPath 的共同父 topic 上，且端点必须是该 topic 的直接 children。

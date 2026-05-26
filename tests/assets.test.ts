@@ -18,6 +18,7 @@ describe("AI-facing assets", () => {
     expect(template).toContain("不要生成 ID");
     expect(template).toContain("schema.json");
     expect(template).toContain('version: "1"');
+    expect(template).toContain("children 可以继续嵌套");
     expect(template).toContain("fromPath");
     expect(template).toContain("toPath");
   });

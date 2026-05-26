@@ -30,6 +30,19 @@ async function archiveContent(workbook: { archive(): Promise<ArrayBuffer> }) {
   return { zip, content };
 }
 
+function nestedTopic(depth: number): { title: string; children?: Array<ReturnType<typeof nestedTopic>> } {
+  const topic = { title: `L${depth}` };
+
+  if (depth === 0) {
+    return topic;
+  }
+
+  return {
+    ...topic,
+    children: [nestedTopic(depth - 1)],
+  };
+}
+
 describe("convertToWorkbook", () => {
   test("maps all convertible root fields into content.json and stores SVG resources as raw SVG", async () => {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
@@ -129,6 +142,30 @@ describe("convertToWorkbook", () => {
     expect(nested?.summaries?.[0]?.class).toBe("summary");
     expect(nested?.summaries?.[0]?.range).toBe("(0,1)");
     expect(nested?.children?.summary?.[0]?.title).toBe("nested sum");
+  });
+
+  test("converts deeply nested child topics without an artificial schema depth limit", async () => {
+    const compiled = compileMindMapDocument({
+      version: "1",
+      sheets: [
+        {
+          title: "S",
+          root: {
+            title: "R",
+            children: [nestedTopic(12)],
+          },
+        },
+      ],
+    });
+
+    const workbook = await convertToWorkbook(compiled);
+    const { content } = await archiveContent(workbook);
+    let current: SerializedTopic | undefined = content[0].rootTopic;
+
+    for (let depth = 12; depth >= 0; depth -= 1) {
+      current = current?.children?.attached?.[0];
+      expect(current?.title).toBe(`L${depth}`);
+    }
   });
 
   test("fails fast with a clear error when relationship paths are missing from the sheet path index", async () => {

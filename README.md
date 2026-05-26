@@ -118,6 +118,18 @@ sheets:
 - `relationships`：当前 topic 下定义的关系线。
 - `summaries`：当前 topic 下定义的概要。
 
+## 子 topic 嵌套深度
+
+`children` 使用递归 schema：每个 child topic 仍然是完整 topic，因此可以继续包含自己的 `children`。
+
+当前实现不设置最大子 topic 层级，也不限制每层 children 数量。实际可处理规模受以下因素限制：
+
+- Bun/JavaScript 调用栈和内存。
+- `xmind-generator` 写出大型 workbook 的能力。
+- XMind 或其他客户端打开大型 `.xmind` 文件的能力。
+
+因此工程语义是“不人为限制层级”，不是数学意义上的无限。
+
 ## 图片说明
 
 `image` 支持以下形式：
