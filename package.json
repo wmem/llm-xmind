@@ -2,6 +2,10 @@
   "name": "llm-xmind",
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
   "bin": {
     "llm-xmind": "./src/cli.ts"
   },

@@ -8,6 +8,10 @@
 bun install
 ```
 
+## 依赖维护
+
+`xmind-generator@1.0.1` 运行时会 import `jszip`，但它的包元数据没有把 `jszip` 声明为 dependencies。本项目显式依赖并 pin `jszip@3.10.1`，用于保证运行时依赖完整；不要随意移除或改成未固定版本。
+
 ## CLI 使用
 
 ```bash
@@ -136,6 +140,7 @@ image:
 ```bash
 bun test
 bunx tsc --noEmit
+bun -e 'import { parseMindMapInput } from "llm-xmind"; console.log(typeof parseMindMapInput)'
 mkdir -p tmp
 bun run llm-xmind fixtures/minimal.yaml -o tmp/minimal.xmind
 bun run llm-xmind fixtures/complete.yaml -o tmp/complete.xmind
