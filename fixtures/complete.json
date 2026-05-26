@@ -1,0 +1,38 @@
+{
+  "version": "1",
+  "sheets": [
+    {
+      "title": "Complete",
+      "root": {
+        "title": "Root",
+        "note": "Root note",
+        "labels": ["planning"],
+        "markers": ["priority-1"],
+        "image": {
+          "kind": "svg",
+          "name": "root.svg",
+          "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"></svg>"
+        },
+        "children": [
+          {
+            "title": "A",
+            "note": "Topic A note",
+            "labels": ["alpha"],
+            "image": {
+              "kind": "data-uri",
+              "name": "a.svg",
+              "data": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2210%22%20height%3D%2210%22%3E%3C%2Fsvg%3E"
+            }
+          },
+          {
+            "title": "B",
+            "markers": ["task-start"],
+            "children": [{ "title": "B1" }]
+          }
+        ],
+        "relationships": [{ "title": "A to B", "fromPath": ["A"], "toPath": ["B"] }],
+        "summaries": [{ "title": "A-B Summary", "fromPath": ["A"], "toPath": ["B"] }]
+      }
+    }
+  ]
+}
