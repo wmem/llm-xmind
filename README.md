@@ -20,6 +20,19 @@ bun run llm-xmind fixtures/minimal.yaml -o tmp/minimal.xmind
 
 CLI 会读取 YAML 或 JSON 输入，校验通过后写出 XMind 文件。
 
+## 编译独立二进制
+
+```bash
+bun run compile
+```
+
+编译产物写入 `dist/llm-xmind`，可直接运行：
+
+```bash
+./dist/llm-xmind fixtures/minimal.yaml -o tmp/minimal.xmind
+./dist/llm-xmind --print-schema
+```
+
 直接输出给 AI 或工具链使用的辅助文件：
 
 ```bash
