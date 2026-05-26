@@ -11,6 +11,7 @@ type TopicContext = {
 type SheetContext = {
   pathIndex: Map<string, MindMapTopic>;
   topics: TopicContext[];
+  availablePaths: string[];
 };
 
 type SummaryRange = {
@@ -52,7 +53,11 @@ function buildSheetContext(root: MindMapTopic, rootSourcePath: string): SheetCon
 
   visit(root, [], rootSourcePath);
 
-  return { pathIndex, topics };
+  return {
+    pathIndex,
+    topics,
+    availablePaths: topics.map(({ semanticPath }) => formatPath(semanticPath)),
+  };
 }
 
 function validateTopicReferences(context: SheetContext): void {
@@ -105,7 +110,7 @@ function validateTopicReferences(context: SheetContext): void {
       }
 
       const range = summaryRange(topic, semanticPath, summary.fromPath, summary.toPath, summaryIndex, summaryPath);
-      const conflictedRange = seenSummaryRanges.find((existing) => isOverlappingRange(existing, range));
+      const conflictedRange = seenSummaryRanges.find((existing) => hasSameEndpointSet(existing, range));
       if (conflictedRange) {
         throw new SemanticValidationError(
           `summary 范围冲突: ${formatPath(summary.fromPath)} -> ${formatPath(
@@ -121,7 +126,12 @@ function validateTopicReferences(context: SheetContext): void {
 
 function assertExistingPath(context: SheetContext, semanticPath: string[], sourcePath: string, fieldName: string): void {
   if (!context.pathIndex.has(pathKey(semanticPath))) {
-    throw new SemanticValidationError(`${fieldName} 引用的 topic 路径不存在: ${formatPath(semanticPath)}`, sourcePath);
+    throw new SemanticValidationError(
+      `${fieldName} 引用的 topic 路径不存在: ${formatPath(semanticPath)}。可用路径: ${context.availablePaths.join(
+        ", ",
+      )}`,
+      sourcePath,
+    );
   }
 }
 
@@ -167,8 +177,8 @@ function directChildIndex(owner: MindMapTopic, ownerPath: string[], childPath: s
   );
 }
 
-function isOverlappingRange(left: SummaryRange, right: SummaryRange): boolean {
-  return left.start <= right.end && right.start <= left.end;
+function hasSameEndpointSet(left: SummaryRange, right: SummaryRange): boolean {
+  return left.start === right.start && left.end === right.end;
 }
 
 function formatPath(semanticPath: string[]): string {

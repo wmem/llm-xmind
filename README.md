@@ -131,7 +131,8 @@ image:
 - 同一个 parent 下的同级 topic 标题必须唯一。
 - `summary` 只能覆盖定义它的 topic 的直接 children。
 - `summary` 不支持单点范围。
-- 同一个 topic 下的 `summary` 范围不能重叠。
+- 同一个 topic 下的 `summary` 不允许重复端点集合，例如 `A -> B` 与 `B -> A` 等价。
+- 不同端点集合的相邻或重叠 `summary` 范围允许写入，行为与 `xmind-generator` 对齐。
 - `relationship` 的 `fromPath` / `toPath` 必须引用已存在 topic。
 - `relationship` 可以使用 `[]` 引用 root topic。
 

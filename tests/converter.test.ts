@@ -190,7 +190,7 @@ describe("convertToWorkbook", () => {
     await expect(convertToWorkbook(compiled)).rejects.toThrow("summary 范围冲突");
   });
 
-  test("fails fast when summary ranges overlap under the same owner topic", async () => {
+  test("keeps overlapping summary ranges with different endpoint sets under the same owner topic", async () => {
     const compiled = compileMindMapDocument({
       version: "1",
       sheets: [
@@ -208,7 +208,12 @@ describe("convertToWorkbook", () => {
       ],
     });
 
-    await expect(convertToWorkbook(compiled)).rejects.toThrow("summary 范围冲突");
+    const workbook = await convertToWorkbook(compiled);
+    const { content } = await archiveContent(workbook);
+    const root = content[0].rootTopic;
+
+    expect(root.summaries?.map((summary) => summary.range)).toEqual(["(0,1)", "(1,2)"]);
+    expect(root.children?.summary?.map((summary) => summary.title)).toEqual(["first", "second"]);
   });
 
   test("fails fast when a single-topic summary is converted directly", async () => {
@@ -227,5 +232,48 @@ describe("convertToWorkbook", () => {
     });
 
     await expect(convertToWorkbook(compiled)).rejects.toThrow("summary 不支持单点范围");
+  });
+
+  test("converts multiple sheets without mixing same-title paths or refs", async () => {
+    const compiled = compileMindMapDocument({
+      version: "1",
+      sheets: [
+        {
+          title: "S1",
+          root: {
+            title: "R1",
+            children: [{ title: "A" }, { title: "B" }],
+            relationships: [{ title: "rel-1", fromPath: ["A"], toPath: ["B"] }],
+          },
+        },
+        {
+          title: "S2",
+          root: {
+            title: "R2",
+            children: [{ title: "A" }, { title: "B" }],
+            relationships: [{ title: "rel-2", fromPath: ["A"], toPath: ["B"] }],
+          },
+        },
+      ],
+    });
+
+    const workbook = await convertToWorkbook(compiled);
+    const { content } = await archiveContent(workbook);
+    const [first, second] = content;
+    const firstChildren = first.rootTopic.children?.attached ?? [];
+    const secondChildren = second.rootTopic.children?.attached ?? [];
+
+    expect(content.map((sheet) => sheet.title)).toEqual(["S1", "S2"]);
+    expect(first.relationships?.[0]).toMatchObject({
+      title: "rel-1",
+      end1Id: firstChildren[0].id,
+      end2Id: firstChildren[1].id,
+    });
+    expect(second.relationships?.[0]).toMatchObject({
+      title: "rel-2",
+      end1Id: secondChildren[0].id,
+      end2Id: secondChildren[1].id,
+    });
+    expect(first.relationships?.[0]?.end1Id).not.toBe(second.relationships?.[0]?.end1Id);
   });
 });

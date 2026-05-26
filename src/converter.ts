@@ -92,7 +92,7 @@ function convertSummaries(owner: CompiledTopic, sheet: CompiledSheet): SummaryBu
   return (
     owner.topic.summaries?.map((summary, summaryIndex) => {
       const converted = convertSummary(summary, owner, sheet, summaryIndex);
-      const conflictedRange = seenRanges.find((existing) => isOverlappingRange(existing, converted.range));
+      const conflictedRange = seenRanges.find((existing) => hasSameEndpointSet(existing, converted.range));
       if (conflictedRange) {
         throw new Error(
           `summary 范围冲突: ${JSON.stringify(summary.fromPath)} -> ${JSON.stringify(
@@ -157,8 +157,8 @@ function summaryRange(owner: CompiledTopic, from: CompiledTopic, to: CompiledTop
   };
 }
 
-function isOverlappingRange(left: SummaryRange, right: SummaryRange): boolean {
-  return left.start <= right.end && right.start <= left.end;
+function hasSameEndpointSet(left: SummaryRange, right: SummaryRange): boolean {
+  return left.start === right.start && left.end === right.end;
 }
 
 function flattenTopics(topic: CompiledTopic): CompiledTopic[] {

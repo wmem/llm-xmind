@@ -160,6 +160,9 @@ describe("validateSemantics", () => {
       expect((error as SemanticValidationError).path).toBe("sheets[0].root.summaries[0].toPath");
       expect((error as Error).message).toContain("不存在");
       expect((error as Error).message).toContain("B");
+      expect((error as Error).message).toContain("可用路径");
+      expect((error as Error).message).toContain("[]");
+      expect((error as Error).message).toContain("A");
     }
   });
 
@@ -218,8 +221,8 @@ describe("validateSemantics", () => {
     }
   });
 
-  test("rejects overlapping summary ranges under the same owner topic", () => {
-    try {
+  test("accepts overlapping summary ranges with different endpoint sets under the same owner topic", () => {
+    expect(() =>
       validateSemantics(
         document({
           title: "R",
@@ -229,15 +232,8 @@ describe("validateSemantics", () => {
             { title: "second", fromPath: ["B"], toPath: ["C"] },
           ],
         }),
-      );
-      throw new Error("expected validateSemantics to throw");
-    } catch (error) {
-      expect(error).toBeInstanceOf(SemanticValidationError);
-      expect((error as SemanticValidationError).path).toBe("sheets[0].root.summaries[1]");
-      expect((error as Error).message).toContain("summary 范围冲突");
-      expect((error as Error).message).toContain("B");
-      expect((error as Error).message).toContain("C");
-    }
+      ),
+    ).not.toThrow();
   });
 
   test("rejects single-topic summary when it overlaps with another summary range", () => {
