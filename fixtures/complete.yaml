@@ -24,6 +24,9 @@ sheets:
         - title: B
           markers:
             - task-start
+          image:
+            kind: file
+            path: fixtures/image.svg
           children:
             - title: B1
       relationships:
