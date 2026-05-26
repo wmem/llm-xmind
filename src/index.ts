@@ -20,7 +20,4 @@ export {
 
 export { parseMindMapInput } from "./parser";
 export { validateMindMapDocument } from "./schema";
-
-export async function generateXmindFile(_input: unknown, _outputPath: string): Promise<void> {
-  throw new Error("not implemented");
-}
+export { generateXmindFile } from "./writer";
