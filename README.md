@@ -8,6 +8,16 @@
 bun install
 ```
 
+## 项目文档
+
+- [项目总览](docs/project.md)
+- [架构说明](docs/architecture.md)
+- [开发说明](docs/development.md)
+- [测试说明](docs/testing.md)
+- [测试用例索引](docs/testing-cases.md)
+- [长期不变量](docs/specs/invariants/)
+- [功能规格](docs/specs/features/)
+
 ## 依赖维护
 
 `xmind-generator@1.0.1` 运行时会 import `jszip`，但它的包元数据没有把 `jszip` 声明为 dependencies。本项目显式依赖并 pin `jszip@3.10.1`，用于保证运行时依赖完整；不要随意移除或改成未固定版本。
